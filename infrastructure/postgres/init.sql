@@ -46,10 +46,10 @@ CREATE TABLE characters (
     tags TEXT[] DEFAULT '{}'
 );
 
--- 世界信息表
+-- World Info Entries table
 CREATE TABLE IF NOT EXISTS world_info_entries (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    character_id UUID REFERENCES characters(id) ON DELETE CASCADE,
+    character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
     key VARCHAR(100) NOT NULL,
     content TEXT NOT NULL,
     position VARCHAR(20) DEFAULT 'before_char' CHECK (position IN ('before_char', 'after_char')),
@@ -94,6 +94,7 @@ CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX idx_sessions_token_hash ON sessions(token_hash);
 CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_world_info_character_id ON world_info_entries(character_id);
+CREATE INDEX IF NOT EXISTS idx_world_info_key ON world_info_entries(key);
 CREATE INDEX IF NOT EXISTS idx_characters_tags ON characters USING GIN(tags);
 
 -- Create default admin user
