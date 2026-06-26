@@ -7,6 +7,7 @@ mod config;
 mod error;
 mod graphql;
 mod app_middleware;
+mod models;
 
 use graphql::{AppSchema, create_schema};
 
