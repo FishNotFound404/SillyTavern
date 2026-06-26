@@ -2,6 +2,7 @@ use actix_web::dev::Payload;
 use actix_web::{Error, FromRequest, HttpRequest};
 use std::future::{ready, Ready};
 
+#[allow(dead_code)]
 pub struct AuthenticatedUser {
     pub user_id: String,
 }

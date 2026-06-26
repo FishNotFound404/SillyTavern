@@ -1,5 +1,6 @@
 use serde::Deserialize;
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub server_host: String,
@@ -8,6 +9,12 @@ pub struct Config {
     pub redis_url: String,
     pub jwt_secret: String,
     pub jwt_expiration: u64,
+    #[serde(default = "default_playground")]
+    pub enable_playground: bool,
+}
+
+fn default_playground() -> bool {
+    cfg!(debug_assertions)
 }
 
 impl Config {

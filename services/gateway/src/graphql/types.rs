@@ -19,6 +19,7 @@ pub struct User {
     pub updated_at: DateTime<Utc>,
 }
 
+#[allow(dead_code)]
 #[derive(SimpleObject)]
 pub struct AuthPayload {
     pub token: String,

@@ -1,5 +1,4 @@
 use async_graphql::{Context, Object, Result, ID};
-use uuid::Uuid;
 
 use super::types::{User, Character, Conversation, Message};
 
@@ -15,15 +14,15 @@ impl QueryRoot {
     async fn characters(
         &self,
         _ctx: &Context<'_>,
-        limit: Option<i32>,
-        offset: Option<i32>,
-        search: Option<String>,
+        _limit: Option<i32>,
+        _offset: Option<i32>,
+        _search: Option<String>,
     ) -> Result<Vec<Character>> {
         // TODO: Implement actual character retrieval
         Ok(vec![])
     }
 
-    async fn character(&self, _ctx: &Context<'_>, id: ID) -> Result<Option<Character>> {
+    async fn character(&self, _ctx: &Context<'_>, _id: ID) -> Result<Option<Character>> {
         // TODO: Implement actual character retrieval
         Ok(None)
     }
@@ -31,14 +30,14 @@ impl QueryRoot {
     async fn conversations(
         &self,
         _ctx: &Context<'_>,
-        limit: Option<i32>,
-        offset: Option<i32>,
+        _limit: Option<i32>,
+        _offset: Option<i32>,
     ) -> Result<Vec<Conversation>> {
         // TODO: Implement actual conversation retrieval
         Ok(vec![])
     }
 
-    async fn conversation(&self, _ctx: &Context<'_>, id: ID) -> Result<Option<Conversation>> {
+    async fn conversation(&self, _ctx: &Context<'_>, _id: ID) -> Result<Option<Conversation>> {
         // TODO: Implement actual conversation retrieval
         Ok(None)
     }
@@ -46,9 +45,9 @@ impl QueryRoot {
     async fn messages(
         &self,
         _ctx: &Context<'_>,
-        conversation_id: ID,
-        limit: Option<i32>,
-        offset: Option<i32>,
+        _conversation_id: ID,
+        _limit: Option<i32>,
+        _offset: Option<i32>,
     ) -> Result<Vec<Message>> {
         // TODO: Implement actual message retrieval
         Ok(vec![])
