@@ -9,6 +9,7 @@ mod graphql;
 mod app_middleware;
 mod models;
 mod repositories;
+mod state;
 
 use graphql::{AppSchema, create_schema};
 

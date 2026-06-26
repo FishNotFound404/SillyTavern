@@ -1,9 +1,10 @@
-use async_graphql::{Schema, EmptyMutation};
+use async_graphql::{Schema, EmptySubscription};
 use super::query::QueryRoot;
-use super::subscription::SubscriptionRoot;
+use super::character_queries::CharacterQueries;
+use super::character_mutations::CharacterMutations;
 
-pub type AppSchema = Schema<QueryRoot, EmptyMutation, SubscriptionRoot>;
+pub type AppSchema = Schema<QueryRoot, CharacterMutations, EmptySubscription>;
 
 pub fn create_schema() -> AppSchema {
-    Schema::build(QueryRoot, EmptyMutation, SubscriptionRoot).finish()
+    Schema::build(QueryRoot, CharacterMutations, EmptySubscription).finish()
 }
