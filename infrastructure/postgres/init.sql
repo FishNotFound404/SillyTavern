@@ -46,6 +46,22 @@ CREATE TABLE characters (
     tags TEXT[] DEFAULT '{}'
 );
 
+-- 世界信息表
+CREATE TABLE IF NOT EXISTS world_info_entries (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    character_id UUID REFERENCES characters(id) ON DELETE CASCADE,
+    key VARCHAR(100) NOT NULL,
+    content TEXT NOT NULL,
+    position VARCHAR(20) DEFAULT 'before_char' CHECK (position IN ('before_char', 'after_char')),
+    order_index INTEGER DEFAULT 0,
+    enabled BOOLEAN DEFAULT TRUE,
+    selective BOOLEAN DEFAULT FALSE,
+    secondary_keys TEXT[] DEFAULT '{}',
+    comment TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Conversations table
 CREATE TABLE conversations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -77,6 +93,8 @@ CREATE INDEX idx_conversations_user_id ON conversations(user_id);
 CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX idx_sessions_token_hash ON sessions(token_hash);
 CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_world_info_character_id ON world_info_entries(character_id);
+CREATE INDEX IF NOT EXISTS idx_characters_tags ON characters USING GIN(tags);
 
 -- Create default admin user
 INSERT INTO users (username, email, password_hash, role) VALUES 
