@@ -74,7 +74,10 @@ CREATE INDEX idx_messages_created_at ON messages(created_at);
 CREATE INDEX idx_characters_user_id ON characters(user_id);
 CREATE INDEX idx_characters_is_public ON characters(is_public);
 CREATE INDEX idx_conversations_user_id ON conversations(user_id);
+CREATE INDEX idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX idx_sessions_token_hash ON sessions(token_hash);
+CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 
--- Create default admin user (password: admin123)
+-- Create default admin user
 INSERT INTO users (username, email, password_hash, role) VALUES 
 ('admin', 'admin@sillytavern.local', '$2b$12$LJ3m4ys3Lz0YBNOURq0Y3OjCfKJmKPOJYqDTPVCKzLOBhZMHfWO6e', 'admin');
