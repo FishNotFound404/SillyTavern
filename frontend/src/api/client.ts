@@ -31,7 +31,7 @@ export async function apiGet<T>(url: string): Promise<T> {
   return res.json()
 }
 
-export async function apiPost<T>(url: string, body: unknown): Promise<T> {
+export async function apiPost<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
   await initCsrfToken()
 
   const headers: Record<string, string> = {
@@ -46,6 +46,7 @@ export async function apiPost<T>(url: string, body: unknown): Promise<T> {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
+    signal,
   })
 
   if (!res.ok) {

@@ -86,6 +86,8 @@ function Chat() {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const messages = chatData.filter(isChatMessage)
 
@@ -169,6 +171,14 @@ function Chat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    const el = textareaRef.current
+    if (el) {
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+    }
+  }, [input])
 
   const buildSystemPrompt = () => {
     if (!character) return ''
@@ -256,6 +266,7 @@ function Chat() {
     setChatData(nextChatData)
     setInput('')
     setGenerating(true)
+    abortControllerRef.current = new AbortController()
 
     try {
       const historyMessages = currentChatData.filter(isChatMessage)
@@ -272,7 +283,7 @@ function Chat() {
       const data = await apiPost<{ content?: string; error?: string }>('/api/minimax/chat/generate', {
         messages: apiMessages,
         model,
-      })
+      }, abortControllerRef.current.signal)
 
       if (data.error) {
         throw new Error(data.error)
@@ -295,6 +306,15 @@ function Chat() {
         chat: finalChatData,
       })
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        await apiPost('/api/chats/save', {
+          avatar_url: avatarUrl,
+          file_name: currentFileId,
+          chat: nextChatData,
+        })
+        return
+      }
+
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       const errorReply: ChatMessage = {
         name: character.name,
@@ -311,6 +331,18 @@ function Chat() {
       })
     } finally {
       setGenerating(false)
+      abortControllerRef.current = null
+    }
+  }
+
+  const handleStop = () => {
+    abortControllerRef.current?.abort()
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
     }
   }
 
@@ -419,25 +451,36 @@ function Chat() {
 
       {/* Input */}
       <div className="mt-4 pt-4 border-t border-gray-800">
-        <div className="flex gap-2">
-          <input
-            type="text"
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            onKeyDown={handleKeyDown}
             placeholder="Type a message..."
-            className="flex-1 bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:border-blue-500 focus:outline-none"
+            rows={1}
+            disabled={generating}
+            className="flex-1 bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:border-blue-500 focus:outline-none resize-none overflow-y-auto max-h-[200px] disabled:opacity-50"
           />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || generating}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-          >
-            {generating ? 'Generating...' : 'Send'}
-          </button>
+          {generating ? (
+            <button
+              onClick={handleStop}
+              className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold"
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+            >
+              Send
+            </button>
+          )}
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Powered by MiniMax via backend proxy.
+          {generating ? 'Generating...' : 'Shift+Enter for a new line'}
         </p>
       </div>
     </div>
