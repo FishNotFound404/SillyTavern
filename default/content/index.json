@@ -120,6 +120,26 @@
         "type": "character"
     },
     {
+        "filename": "default_nova_7.png",
+        "type": "character"
+    },
+    {
+        "filename": "default_kael_vance.png",
+        "type": "character"
+    },
+    {
+        "filename": "default_zyrex.png",
+        "type": "character"
+    },
+    {
+        "filename": "default_dr_lumen.png",
+        "type": "character"
+    },
+    {
+        "filename": "default_riven.png",
+        "type": "character"
+    },
+    {
         "filename": "Seraphina",
         "type": "sprites"
     },
