@@ -43,6 +43,10 @@ function generateUUID() {
   })
 }
 
+function stripThinkTags(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+}
+
 function generateChatFileName(characterName: string) {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -79,7 +83,6 @@ function Chat() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -167,23 +170,6 @@ function Chat() {
     return parts.join('\n\n')
   }
 
-  const saveChat = async (data: ChatLine[]) => {
-    if (!avatarUrl || !selectedFile) return
-    setSaving(true)
-    try {
-      await apiPost('/api/chats/save', {
-        avatar_url: avatarUrl,
-        file_name: selectedFile,
-        chat: data,
-      })
-      loadChatFiles()
-    } catch (err) {
-      console.error('Failed to save chat:', err)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleNewChat = async () => {
     if (!avatarUrl || !character) return
 
@@ -217,7 +203,7 @@ function Chat() {
     if (!input.trim() || !character || generating) return
 
     // If this character has no chat file yet, create one on the fly.
-    let currentFileId = selectedFile
+    let currentFileId = selectedFile || ''
     let currentChatData = chatData
     if (!currentFileId) {
       const fileName = generateChatFileName(character.name)
@@ -410,7 +396,7 @@ function Chat() {
                   {message.name}
                 </div>
                 <div className="whitespace-pre-wrap leading-relaxed">
-                  {message.mes}
+                  {stripThinkTags(message.mes) || '[No visible content]'}
                 </div>
               </div>
             </div>
@@ -439,7 +425,7 @@ function Chat() {
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          {saving ? 'Saving...' : 'Powered by MiniMax via backend proxy.'}
+          Powered by MiniMax via backend proxy.
         </p>
       </div>
     </div>
