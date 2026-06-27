@@ -86,6 +86,8 @@ function Chat() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editText, setEditText] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -189,6 +191,20 @@ function Chat() {
     if (character.scenario) parts.push(`Scenario: ${character.scenario}`)
     parts.push(`You are ${character.name}. Stay in character and respond as ${character.name}.`)
     return parts.join('\n\n')
+  }
+
+  const saveChatData = async (data: ChatLine[]) => {
+    if (!avatarUrl || !selectedFile) return
+    try {
+      await apiPost('/api/chats/save', {
+        avatar_url: avatarUrl,
+        file_name: selectedFile,
+        chat: data,
+      })
+    } catch (err) {
+      console.error('Failed to save chat:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save chat')
+    }
   }
 
   const handleNewChat = async () => {
@@ -347,6 +363,106 @@ function Chat() {
     }
   }
 
+  // Message index in chatData is messageIndex + 1 because line 0 is metadata.
+  const toChatDataIndex = (messageIndex: number) => messageIndex + 1
+
+  const handleEditStart = (messageIndex: number, text: string) => {
+    setEditingIndex(messageIndex)
+    setEditText(text)
+  }
+
+  const handleEditCancel = () => {
+    setEditingIndex(null)
+    setEditText('')
+  }
+
+  const handleEditSave = async (messageIndex: number) => {
+    if (!editText.trim()) return
+    const chatDataIndex = toChatDataIndex(messageIndex)
+    const updated = [...chatData]
+    const target = updated[chatDataIndex]
+    if (target && isChatMessage(target)) {
+      target.mes = editText.trim()
+      target.send_date = new Date().toISOString()
+      setChatData(updated)
+      await saveChatData(updated)
+    }
+    setEditingIndex(null)
+    setEditText('')
+  }
+
+  const handleDelete = async (messageIndex: number) => {
+    const chatDataIndex = toChatDataIndex(messageIndex)
+    const updated = chatData.filter((_, i) => i !== chatDataIndex)
+    setChatData(updated)
+    await saveChatData(updated)
+  }
+
+  const handleRegenerate = async (messageIndex: number) => {
+    if (!character || generating) return
+    const chatDataIndex = toChatDataIndex(messageIndex)
+    const target = chatData[chatDataIndex]
+    if (!target || !isChatMessage(target) || target.is_user) return
+
+    // Truncate to keep everything up to and including the user message that prompted this reply.
+    const truncated = chatData.slice(0, chatDataIndex)
+    setChatData(truncated)
+    setGenerating(true)
+    abortControllerRef.current = new AbortController()
+
+    try {
+      const historyMessages = truncated.filter(isChatMessage)
+      const apiMessages = [
+        { role: 'system', content: buildSystemPrompt() },
+        ...historyMessages.map((m) => ({
+          role: m.is_user ? 'user' : 'assistant',
+          content: m.mes,
+        })),
+      ]
+
+      const model = localStorage.getItem('sillytavern:settings:model') || 'MiniMax-M3'
+      const data = await apiPost<{ content?: string; error?: string }>('/api/minimax/chat/generate', {
+        messages: apiMessages,
+        model,
+      }, abortControllerRef.current.signal)
+
+      if (data.error) {
+        throw new Error(data.error)
+      }
+
+      const replyText = data.content || '[No response]'
+      const reply: ChatMessage = {
+        name: character.name,
+        is_user: false,
+        mes: replyText,
+        send_date: new Date().toISOString(),
+      }
+
+      const finalChatData = [...truncated, reply]
+      setChatData(finalChatData)
+      await saveChatData(finalChatData)
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        await saveChatData(truncated)
+        return
+      }
+
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      const errorReply: ChatMessage = {
+        name: character.name,
+        is_user: false,
+        mes: `[Error generating reply: ${errorMessage}]`,
+        send_date: new Date().toISOString(),
+      }
+      const finalChatData = [...truncated, errorReply]
+      setChatData(finalChatData)
+      await saveChatData(finalChatData)
+    } finally {
+      setGenerating(false)
+      abortControllerRef.current = null
+    }
+  }
+
   if (loading) {
     return <ChatSkeleton />
   }
@@ -439,21 +555,100 @@ function Chat() {
           messages.map((message, index) => (
             <div
               key={index}
-              className={`flex ${message.is_user ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${message.is_user ? 'justify-end' : 'justify-start'} group`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-5 py-3 ${
+                className={`relative max-w-[80%] rounded-2xl px-5 py-3 ${
                   message.is_user
                     ? 'bg-blue-600 text-white rounded-br-md'
                     : 'bg-gray-800 text-gray-100 rounded-bl-md'
                 }`}
               >
+                {/* Message actions */}
+                <div
+                  className={`absolute top-0 ${
+                    message.is_user ? 'left-0 -translate-x-full pl-2' : 'right-0 translate-x-full pr-2'
+                  } opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1`}
+                >
+                  {message.is_user && (
+                    <button
+                      onClick={() => handleEditStart(index, message.mes)}
+                      disabled={editingIndex !== null}
+                      className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-gray-800 rounded"
+                      title="Edit"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                      </svg>
+                    </button>
+                  )}
+                  {!message.is_user && (
+                    <button
+                      onClick={() => handleRegenerate(index)}
+                      disabled={generating || editingIndex !== null}
+                      className="p-1.5 text-gray-400 hover:text-green-400 hover:bg-gray-800 rounded"
+                      title="Regenerate"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                      </svg>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDelete(index)}
+                    disabled={generating || editingIndex !== null}
+                    className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded"
+                    title="Delete"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                  </button>
+                </div>
+
                 <div className="text-xs opacity-75 mb-1">
                   {message.name}
                 </div>
-                <div className="whitespace-pre-wrap leading-relaxed">
-                  {stripThinkTags(message.mes) || '[No visible content]'}
-                </div>
+
+                {editingIndex === index ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleEditSave(index)
+                        }
+                        if (e.key === 'Escape') {
+                          handleEditCancel()
+                        }
+                      }}
+                      rows={3}
+                      className="w-full bg-black/20 text-white rounded-lg px-3 py-2 border border-white/30 focus:border-white focus:outline-none resize-none"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEditSave(index)}
+                        disabled={!editText.trim()}
+                        className="px-3 py-1 text-xs bg-white/20 hover:bg-white/30 rounded disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={handleEditCancel}
+                        className="px-3 py-1 text-xs hover:bg-white/10 rounded"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap leading-relaxed">
+                    {stripThinkTags(message.mes) || '[No visible content]'}
+                  </div>
+                )}
               </div>
             </div>
           ))
