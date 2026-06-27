@@ -25,8 +25,13 @@ function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const API_KEY = import.meta.env.VITE_MINIMAX_API_KEY
+  const BASE_URL = import.meta.env.VITE_MINIMAX_BASE_URL
+  const MODEL = import.meta.env.VITE_MINIMAX_MODEL
 
   // Fetch character details
   useEffect(() => {
@@ -104,29 +109,83 @@ function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSend = () => {
-    if (!input.trim() || !character) return
+  const buildSystemPrompt = () => {
+    if (!character) return ''
+    const parts: string[] = []
+    if (character.description) parts.push(`Description: ${character.description}`)
+    if (character.personality) parts.push(`Personality: ${character.personality}`)
+    if (character.scenario) parts.push(`Scenario: ${character.scenario}`)
+    parts.push(`You are ${character.name}. Stay in character and respond as ${character.name}.`)
+    return parts.join('\n\n')
+  }
 
+  const handleSend = async () => {
+    if (!input.trim() || !character || generating) return
+
+    const userText = input.trim()
     const newMessage: ChatMessage = {
       name: 'You',
       is_user: true,
-      mes: input.trim(),
+      mes: userText,
       send_date: new Date().toISOString(),
     }
 
     setMessages((prev) => [...prev, newMessage])
     setInput('')
+    setGenerating(true)
 
-    // TODO: Connect to LLM backend for actual replies
-    setTimeout(() => {
+    try {
+      const apiMessages = [
+        { role: 'system', content: buildSystemPrompt() },
+        ...messages.map((m) => ({
+          role: m.is_user ? 'user' : 'assistant',
+          content: m.mes,
+        })),
+        { role: 'user', content: userText },
+      ]
+
+      const response = await fetch(`${BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: apiMessages,
+          temperature: 0.7,
+          max_tokens: 1024,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error?.message || `HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      const replyText = data.choices?.[0]?.message?.content || '[No response]'
+
       const reply: ChatMessage = {
         name: character.name,
         is_user: false,
-        mes: `[This is a placeholder reply from ${character.name}. LLM integration is not yet implemented.]`,
+        mes: replyText,
         send_date: new Date().toISOString(),
       }
+
       setMessages((prev) => [...prev, reply])
-    }, 600)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      const errorReply: ChatMessage = {
+        name: character.name,
+        is_user: false,
+        mes: `[Error generating reply: ${errorMessage}]`,
+        send_date: new Date().toISOString(),
+      }
+      setMessages((prev) => [...prev, errorReply])
+    } finally {
+      setGenerating(false)
+    }
   }
 
   if (loading) {
@@ -236,14 +295,14 @@ function Chat() {
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() || generating}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
           >
-            Send
+            {generating ? 'Generating...' : 'Send'}
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Note: Replies are currently placeholders. LLM integration is not implemented yet.
+          Powered by MiniMax OpenAI-compatible API.
         </p>
       </div>
     </div>
