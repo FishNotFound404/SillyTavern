@@ -93,7 +93,7 @@ function CharacterDetail() {
               </div>
             )}
             <button
-              onClick={() => navigate('/chat')}
+              onClick={() => navigate(`/chat?avatar=${encodeURIComponent(character.avatar)}`)}
               className="mt-6 w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition-colors"
             >
               Start Chat
