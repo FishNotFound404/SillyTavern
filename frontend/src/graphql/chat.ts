@@ -1,5 +1,7 @@
 import { gql } from '@apollo/client';
 
+export type MessageRole = 'user' | 'assistant' | 'system';
+
 export const GET_CONVERSATIONS = gql`
   query GetConversations($limit: Int, $offset: Int) {
     conversations(limit: $limit, offset: $offset) {

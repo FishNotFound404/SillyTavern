@@ -5,6 +5,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Characters from './pages/Characters';
 import CharacterEditor from './pages/CharacterEditor';
+import Chat from './pages/Chat';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
             <div className="container mx-auto flex gap-4">
               <a href="/" className="text-white hover:text-primary-400">Home</a>
               <a href="/characters" className="text-white hover:text-primary-400">Characters</a>
+              <a href="/chat" className="text-white hover:text-primary-400">Chat</a>
             </div>
           </nav>
           <Routes>
@@ -22,6 +24,8 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/characters" element={<Characters />} />
             <Route path="/characters/:id" element={<CharacterEditor />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/chat/:id" element={<Chat />} />
           </Routes>
         </div>
       </Router>
