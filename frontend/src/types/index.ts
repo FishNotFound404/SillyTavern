@@ -9,3 +9,24 @@ export interface Character {
   create_date?: string
   date_last_chat?: number
 }
+
+export interface ChatMessage {
+  name: string
+  is_user: boolean
+  mes: string
+  send_date: string
+}
+
+export interface ChatMetadata {
+  chat_metadata: {
+    integrity: string
+    note_prompt: string
+    note_interval: number
+    note_position: number
+    note_depth: number
+    note_role: number
+    tainted?: boolean
+  }
+  user_name: string
+  character_name: string
+}

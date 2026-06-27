@@ -226,3 +226,83 @@ router.post('/generate-voice', async (request, response) => {
         return response.status(500).json({ error: 'Internal server error' });
     }
 });
+
+/**
+ * Lightweight chat-completion proxy for the React frontend.
+ * Reads the MiniMax API key from user secrets and forwards the request
+ * to MiniMax's OpenAI-compatible endpoint.
+ */
+router.post('/chat/generate', async (request, response) => {
+    try {
+        const apiKey = readSecret(request.user.directories, SECRET_KEYS.MINIMAX);
+        if (!apiKey) {
+            console.warn('MiniMax chat: API key not configured');
+            return response.status(400).json({ error: 'MiniMax API key is not configured. Please set it in the backend secrets.' });
+        }
+
+        const {
+            messages,
+            model = 'MiniMax-M3',
+            baseUrl = 'https://api.minimaxi.com/v1',
+            temperature = 0.7,
+            max_tokens = 1024,
+        } = request.body;
+
+        if (!Array.isArray(messages) || messages.length === 0) {
+            return response.status(400).json({ error: 'Missing or invalid messages array.' });
+        }
+
+        const apiUrl = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+
+        const apiResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model,
+                messages,
+                temperature,
+                max_tokens,
+            }),
+        });
+
+        /** @type {any} */
+        let responseData;
+        try {
+            responseData = await apiResponse.json();
+        } catch (jsonError) {
+            console.error('MiniMax chat: Failed to parse response as JSON:', jsonError);
+            return response.status(500).json({ error: 'Invalid response format from MiniMax API' });
+        }
+
+        if (!apiResponse.ok) {
+            const baseResp = responseData?.base_resp;
+            let errorMessage;
+            if (baseResp && baseResp.status_code !== 0) {
+                if (baseResp.status_code === 1004) {
+                    errorMessage = 'Authentication failed - Please check your MiniMax API key';
+                } else {
+                    errorMessage = `API Error: ${baseResp.status_msg}`;
+                }
+            } else {
+                errorMessage = responseData.error?.message || `HTTP ${apiResponse.status}`;
+            }
+            console.error('MiniMax chat API request failed:', errorMessage);
+            return response.status(500).json({ error: errorMessage });
+        }
+
+        const baseResp = responseData?.base_resp;
+        if (baseResp && baseResp.status_code !== 0) {
+            console.error('MiniMax chat API error:', baseResp);
+            return response.status(500).json({ error: `API Error: ${baseResp.status_msg}` });
+        }
+
+        const content = responseData.choices?.[0]?.message?.content || '';
+        return response.json({ content });
+    } catch (error) {
+        console.error('MiniMax chat generation failed:', error);
+        return response.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+    }
+});

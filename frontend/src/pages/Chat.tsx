@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { apiPost } from '../api/client'
 import type { Character } from '../types'
@@ -15,6 +15,58 @@ interface ChatFile {
   file_id: string
 }
 
+interface ChatMetadata {
+  chat_metadata: {
+    integrity: string
+    note_prompt: string
+    note_interval: number
+    note_position: number
+    note_depth: number
+    note_role: number
+    tainted?: boolean
+  }
+  user_name: string
+  character_name: string
+}
+
+type ChatLine = ChatMetadata | ChatMessage
+
+function isChatMessage(line: ChatLine): line is ChatMessage {
+  return 'mes' in line
+}
+
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+function generateChatFileName(characterName: string) {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const datePart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const timePart = `${pad(now.getHours())}h${pad(now.getMinutes())}m${pad(now.getSeconds())}s${now.getMilliseconds()}ms`
+  return `${characterName} - ${datePart}@${timePart}.jsonl`
+}
+
+function createChatMetadata(characterName: string): ChatMetadata {
+  return {
+    chat_metadata: {
+      integrity: generateUUID(),
+      note_prompt: '',
+      note_interval: 1,
+      note_position: 1,
+      note_depth: 4,
+      note_role: 0,
+      tainted: true,
+    },
+    user_name: 'User',
+    character_name: characterName,
+  }
+}
+
 function Chat() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -23,16 +75,15 @@ function Chat() {
   const [character, setCharacter] = useState<Character | null>(null)
   const [chatFiles, setChatFiles] = useState<ChatFile[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [chatData, setChatData] = useState<ChatLine[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const API_KEY = import.meta.env.VITE_MINIMAX_API_KEY
-  const BASE_URL = import.meta.env.VITE_MINIMAX_BASE_URL
-  const MODEL = import.meta.env.VITE_MINIMAX_MODEL
+  const messages = chatData.filter(isChatMessage)
 
   // Fetch character details
   useEffect(() => {
@@ -49,11 +100,23 @@ function Chat() {
       .catch((err) => setError(err.message))
   }, [avatarUrl])
 
+  const loadChatFiles = useCallback(() => {
+    if (!avatarUrl) return
+
+    apiPost<ChatFile[]>('/api/characters/chats', { avatar_url: avatarUrl, simple: true })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setChatFiles(data)
+        }
+      })
+      .catch((err) => setError(err.message))
+  }, [avatarUrl])
+
   // Fetch chat files for this character
   useEffect(() => {
     if (!avatarUrl) return
 
-    apiPost<ChatFile[]>('/api/characters/chats', { avatar_url: avatarUrl })
+    apiPost<ChatFile[]>('/api/characters/chats', { avatar_url: avatarUrl, simple: true })
       .then((data) => {
         if (Array.isArray(data)) {
           setChatFiles(data)
@@ -72,24 +135,23 @@ function Chat() {
   // Load selected chat
   useEffect(() => {
     if (!avatarUrl || !selectedFile) {
-      setMessages([])
+      setChatData([])
       return
     }
 
-    apiPost<ChatMessage[]>('/api/chats/get', {
-        avatar_url: avatarUrl,
-        file_name: selectedFile,
-      })
+    apiPost<ChatLine[]>('/api/chats/get', {
+      avatar_url: avatarUrl,
+      file_name: selectedFile,
+    })
       .then((data) => {
-        if (Array.isArray(data)) {
-          // Skip the first metadata object
-          setMessages(data.slice(1).filter((m) => m && typeof m.mes === 'string'))
+        if (Array.isArray(data) && data.length > 0) {
+          setChatData(data)
         } else {
-          setMessages([])
+          setChatData([createChatMetadata(character?.name || 'Character')])
         }
       })
       .catch((err) => setError(err.message))
-  }, [avatarUrl, selectedFile])
+  }, [avatarUrl, selectedFile, character?.name])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -105,52 +167,120 @@ function Chat() {
     return parts.join('\n\n')
   }
 
+  const saveChat = async (data: ChatLine[]) => {
+    if (!avatarUrl || !selectedFile) return
+    setSaving(true)
+    try {
+      await apiPost('/api/chats/save', {
+        avatar_url: avatarUrl,
+        file_name: selectedFile,
+        chat: data,
+      })
+      loadChatFiles()
+    } catch (err) {
+      console.error('Failed to save chat:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleNewChat = async () => {
+    if (!avatarUrl || !character) return
+
+    const fileName = generateChatFileName(character.name)
+    const fileId = fileName.replace(/\.jsonl$/, '')
+    const initialData: ChatLine[] = [createChatMetadata(character.name)]
+
+    if (character.first_mes) {
+      initialData.push({
+        name: character.name,
+        is_user: false,
+        mes: character.first_mes,
+        send_date: new Date().toISOString(),
+      })
+    }
+
+    try {
+      await apiPost('/api/chats/save', {
+        avatar_url: avatarUrl,
+        file_name: fileId,
+        chat: initialData,
+      })
+      await loadChatFiles()
+      setSelectedFile(fileId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create new chat')
+    }
+  }
+
   const handleSend = async () => {
     if (!input.trim() || !character || generating) return
 
+    // If this character has no chat file yet, create one on the fly.
+    let currentFileId = selectedFile
+    let currentChatData = chatData
+    if (!currentFileId) {
+      const fileName = generateChatFileName(character.name)
+      currentFileId = fileName.replace(/\.jsonl$/, '')
+      const initialData: ChatLine[] = [createChatMetadata(character.name)]
+
+      if (character.first_mes) {
+        initialData.push({
+          name: character.name,
+          is_user: false,
+          mes: character.first_mes,
+          send_date: new Date().toISOString(),
+        })
+      }
+
+      try {
+        await apiPost('/api/chats/save', {
+          avatar_url: avatarUrl,
+          file_name: currentFileId,
+          chat: initialData,
+        })
+        setSelectedFile(currentFileId)
+        setChatFiles((prev) => [...prev, { file_name: fileName, file_id: currentFileId }])
+        currentChatData = initialData
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to create chat file')
+        return
+      }
+    }
+
     const userText = input.trim()
-    const newMessage: ChatMessage = {
+    const userMessage: ChatMessage = {
       name: 'You',
       is_user: true,
       mes: userText,
       send_date: new Date().toISOString(),
     }
 
-    setMessages((prev) => [...prev, newMessage])
+    const nextChatData = [...currentChatData, userMessage]
+    setChatData(nextChatData)
     setInput('')
     setGenerating(true)
 
     try {
+      const historyMessages = currentChatData.filter(isChatMessage)
       const apiMessages = [
         { role: 'system', content: buildSystemPrompt() },
-        ...messages.map((m) => ({
+        ...historyMessages.map((m) => ({
           role: m.is_user ? 'user' : 'assistant',
           content: m.mes,
         })),
         { role: 'user', content: userText },
       ]
 
-      const response = await fetch(`${BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: apiMessages,
-          temperature: 0.7,
-          max_tokens: 1024,
-        }),
+      const data = await apiPost<{ content?: string; error?: string }>('/api/minimax/chat/generate', {
+        messages: apiMessages,
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`)
+      if (data.error) {
+        throw new Error(data.error)
       }
 
-      const data = await response.json()
-      const replyText = data.choices?.[0]?.message?.content || '[No response]'
+      const replyText = data.content || '[No response]'
 
       const reply: ChatMessage = {
         name: character.name,
@@ -159,7 +289,13 @@ function Chat() {
         send_date: new Date().toISOString(),
       }
 
-      setMessages((prev) => [...prev, reply])
+      const finalChatData = [...nextChatData, reply]
+      setChatData(finalChatData)
+      await apiPost('/api/chats/save', {
+        avatar_url: avatarUrl,
+        file_name: currentFileId,
+        chat: finalChatData,
+      })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       const errorReply: ChatMessage = {
@@ -168,7 +304,13 @@ function Chat() {
         mes: `[Error generating reply: ${errorMessage}]`,
         send_date: new Date().toISOString(),
       }
-      setMessages((prev) => [...prev, errorReply])
+      const finalChatData = [...nextChatData, errorReply]
+      setChatData(finalChatData)
+      await apiPost('/api/chats/save', {
+        avatar_url: avatarUrl,
+        file_name: currentFileId,
+        chat: finalChatData,
+      })
     } finally {
       setGenerating(false)
     }
@@ -219,19 +361,28 @@ function Chat() {
           )}
         </div>
 
-        {chatFiles.length > 0 && (
-          <select
-            value={selectedFile || ''}
-            onChange={(e) => setSelectedFile(e.target.value)}
-            className="bg-gray-800 text-white rounded-lg px-3 py-2 border border-gray-700"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleNewChat}
+            disabled={!character}
+            className="px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {chatFiles.map((file) => (
-              <option key={file.file_id} value={file.file_id}>
-                {file.file_name}
-              </option>
-            ))}
-          </select>
-        )}
+            New Chat
+          </button>
+          {chatFiles.length > 0 && (
+            <select
+              value={selectedFile || ''}
+              onChange={(e) => setSelectedFile(e.target.value)}
+              className="bg-gray-800 text-white rounded-lg px-3 py-2 border border-gray-700"
+            >
+              {chatFiles.map((file) => (
+                <option key={file.file_id} value={file.file_id}>
+                  {file.file_name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -288,7 +439,7 @@ function Chat() {
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Powered by MiniMax OpenAI-compatible API.
+          {saving ? 'Saving...' : 'Powered by MiniMax via backend proxy.'}
         </p>
       </div>
     </div>

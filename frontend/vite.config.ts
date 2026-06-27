@@ -5,12 +5,17 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    historyApiFallback: true,
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
       '/csrf-token': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '^/characters/.*\\.png$': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
