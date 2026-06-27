@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { Character } from '../types'
 
 function Characters() {
+  const navigate = useNavigate()
   const [characters, setCharacters] = useState<Character[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,6 +58,7 @@ function Characters() {
           {characters.map((character) => (
             <div
               key={character.avatar}
+              onClick={() => navigate(`/character/${encodeURIComponent(character.avatar)}`)}
               className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 hover:border-blue-500 transition-colors cursor-pointer group"
             >
               <div className="aspect-square bg-gray-700 flex items-center justify-center overflow-hidden">

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Navigation from './components/Navigation'
 import Characters from './pages/Characters'
+import CharacterDetail from './pages/CharacterDetail'
 import Chat from './pages/Chat'
 import Settings from './pages/Settings'
 
@@ -12,6 +13,7 @@ function App() {
         <main>
           <Routes>
             <Route path="/" element={<Characters />} />
+            <Route path="/character/:avatar" element={<CharacterDetail />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
