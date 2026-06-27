@@ -128,7 +128,10 @@
         "lint": "eslint \"src/**/*.js\" \"public/**/*.js\" ./*.js",
         "lint:fix": "eslint \"src/**/*.js\" \"public/**/*.js\" ./*.js --fix",
         "plugins:update": "node plugins update",
-        "plugins:install": "node plugins install"
+        "plugins:install": "node plugins install",
+        "dev": "concurrently \"npm run start\" \"cd frontend && npm run dev\"",
+        "dev:frontend": "cd frontend && npm run dev",
+        "dev:backend": "npm run start"
     },
     "bin": {
         "sillytavern": "./src/server-global.js"
@@ -166,6 +169,7 @@
         "@types/write-file-atomic": "^4.0.3",
         "@types/yargs": "^17.0.33",
         "@types/yauzl": "^2.10.3",
+        "concurrently": "^10.0.3",
         "eslint": "^8.57.1",
         "eslint-plugin-jest": "^27.9.0",
         "eslint-plugin-jsdoc": "^48.10.0",
