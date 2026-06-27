@@ -77,7 +77,15 @@ def run() -> int:
         print(f'   Messages after new chat: {message_count}')
         screenshot(page, 'new-chat')
 
-        # 6. Reload and verify persistence
+        # 6. Send a message in the new chat, then reload to verify persistence
+        print('=> Sending message in new chat')
+        page.get_by_placeholder('Type a message...').fill('Nice to meet you!')
+        page.get_by_role('button', name='Send').click()
+        page.get_by_role('button', name='Send').wait_for(state='visible', timeout=45000)
+        page.wait_for_timeout(500)
+        message_count = page.locator('.whitespace-pre-wrap').count()
+        print(f'   Messages after send: {message_count}')
+
         print('=> Reloading to verify persistence')
         page.reload()
         page.wait_for_timeout(3000)

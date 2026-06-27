@@ -72,13 +72,14 @@ function createChatMetadata(characterName: string): ChatMetadata {
 }
 
 function Chat() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const avatarUrl = searchParams.get('avatar')
+  const requestedChat = searchParams.get('chat')
 
   const [character, setCharacter] = useState<Character | null>(null)
   const [chatFiles, setChatFiles] = useState<ChatFile[]>([])
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<string | null>(requestedChat)
   const [chatData, setChatData] = useState<ChatLine[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -115,6 +116,14 @@ function Chat() {
       .catch((err) => setError(err.message))
   }, [avatarUrl])
 
+  const selectChat = useCallback((fileId: string | null) => {
+    setSelectedFile(fileId)
+    if (!avatarUrl) return
+    const params: Record<string, string> = { avatar: avatarUrl }
+    if (fileId) params.chat = fileId
+    setSearchParams(params, { replace: true })
+  }, [avatarUrl, setSearchParams])
+
   // Fetch chat files for this character
   useEffect(() => {
     if (!avatarUrl) return
@@ -124,7 +133,8 @@ function Chat() {
         if (Array.isArray(data)) {
           setChatFiles(data)
           if (data.length > 0) {
-            setSelectedFile(data[0].file_id)
+            const match = requestedChat ? data.find((f) => f.file_id === requestedChat) : null
+            setSelectedFile(match ? match.file_id : data[0].file_id)
           }
         }
         setLoading(false)
@@ -133,7 +143,7 @@ function Chat() {
         setError(err.message)
         setLoading(false)
       })
-  }, [avatarUrl])
+  }, [avatarUrl, requestedChat])
 
   // Load selected chat
   useEffect(() => {
@@ -193,7 +203,7 @@ function Chat() {
         chat: initialData,
       })
       await loadChatFiles()
-      setSelectedFile(fileId)
+      selectChat(fileId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create new chat')
     }
@@ -225,7 +235,7 @@ function Chat() {
           file_name: currentFileId,
           chat: initialData,
         })
-        setSelectedFile(currentFileId)
+        selectChat(currentFileId)
         setChatFiles((prev) => [...prev, { file_name: fileName, file_id: currentFileId }])
         currentChatData = initialData
       } catch (err) {
@@ -358,7 +368,7 @@ function Chat() {
           {chatFiles.length > 0 && (
             <select
               value={selectedFile || ''}
-              onChange={(e) => setSelectedFile(e.target.value)}
+              onChange={(e) => selectChat(e.target.value)}
               className="bg-gray-800 text-white rounded-lg px-3 py-2 border border-gray-700"
             >
               {chatFiles.map((file) => (
