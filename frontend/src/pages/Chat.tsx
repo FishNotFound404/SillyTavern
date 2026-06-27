@@ -268,8 +268,10 @@ function Chat() {
         { role: 'user', content: userText },
       ]
 
+      const model = localStorage.getItem('sillytavern:settings:model') || 'MiniMax-M3'
       const data = await apiPost<{ content?: string; error?: string }>('/api/minimax/chat/generate', {
         messages: apiMessages,
+        model,
       })
 
       if (data.error) {

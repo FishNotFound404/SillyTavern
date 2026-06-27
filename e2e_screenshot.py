@@ -21,7 +21,15 @@ def run() -> int:
 
         errors = []
         page.on('pageerror', lambda err: errors.append(str(err)))
-        page.on('console', lambda msg: print(f'[console {msg.type}] {msg.text}') if msg.type == 'error' else None)
+        def log_console(msg):
+            if msg.type == 'error':
+                print(f'[console {msg.type}] {msg.text}')
+                for arg in msg.args:
+                    try:
+                        print(f'  -> {arg.json_value()}')
+                    except Exception:
+                        pass
+        page.on('console', log_console)
 
         # 1. Characters list
         print('=> Loading characters list')
@@ -95,6 +103,13 @@ def run() -> int:
             print('[FAIL] Chat did not persist after reload')
             browser.close()
             return 1
+
+        # 7. Settings page
+        print('=> Opening settings')
+        page.get_by_role('link', name='Settings').click()
+        page.wait_for_timeout(2000)
+        expect(page.locator('text=MiniMax Configuration').first).to_be_visible()
+        screenshot(page, 'settings')
 
         browser.close()
 

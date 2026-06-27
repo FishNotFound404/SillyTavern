@@ -203,6 +203,10 @@ function getLatestBackup(handle) {
 
 export const router = express.Router();
 
+router.get('/status', (request, response) => {
+    response.json({ online: true });
+});
+
 router.post('/save', function (request, response) {
     try {
         const pathToSettings = path.join(request.user.directories.root, SETTINGS_FILE);

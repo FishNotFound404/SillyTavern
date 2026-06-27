@@ -228,6 +228,25 @@ router.post('/generate-voice', async (request, response) => {
 });
 
 /**
+ * Status endpoint for the React frontend settings page.
+ * Returns whether the MiniMax API key is configured (without exposing it)
+ * and the list of supported chat models.
+ */
+router.get('/status', async (request, response) => {
+    try {
+        const apiKey = readSecret(request.user.directories, SECRET_KEYS.MINIMAX);
+        response.json({
+            configured: !!apiKey,
+            default_model: 'MiniMax-M3',
+            available_models: ['MiniMax-M3', 'MiniMax-Text-01', 'abab6.5s-chat'],
+        });
+    } catch (error) {
+        console.error('MiniMax status check failed:', error);
+        response.status(500).json({ error: 'Failed to read MiniMax configuration' });
+    }
+});
+
+/**
  * Lightweight chat-completion proxy for the React frontend.
  * Reads the MiniMax API key from user secrets and forwards the request
  * to MiniMax's OpenAI-compatible endpoint.

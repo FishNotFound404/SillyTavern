@@ -28,6 +28,9 @@ This branch adds a modern React + TypeScript + Vite + Tailwind frontend while ke
 #### New Chat
 ![New Chat](docs/images/new-chat.png)
 
+#### Settings
+![Settings](docs/images/settings.png)
+
 ### Development
 
 ```bash
