@@ -7,11 +7,13 @@ mod config;
 mod error;
 mod graphql;
 mod app_middleware;
+mod llm;
 mod models;
 mod repositories;
 mod state;
 
 use graphql::{AppSchema, create_schema};
+use state::AppState;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -25,6 +27,14 @@ async fn main() -> std::io::Result<()> {
     let addr = config.server_addr();
 
     tracing::info!("Starting server on {}", addr);
+
+    // Create database pool
+    let db_pool = sqlx::PgPool::connect(&config.database_url)
+        .await
+        .expect("Failed to connect to database");
+
+    // Create app state
+    let app_state = web::Data::new(AppState { db_pool });
 
     // Create GraphQL schema
     let schema = create_schema();
@@ -41,6 +51,7 @@ async fn main() -> std::io::Result<()> {
         let mut app = App::new()
             .wrap(cors)
             .wrap(middleware::Logger::default())
+            .app_data(app_state.clone())
             .app_data(web::Data::new(schema.clone()))
             .service(
                 web::resource("/graphql")
@@ -67,8 +78,13 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-async fn graphql_handler(schema: web::Data<AppSchema>, req: GraphQLRequest) -> GraphQLResponse {
-    schema.execute(req.into_inner()).await.into()
+async fn graphql_handler(
+    schema: web::Data<AppSchema>,
+    state: web::Data<AppState>,
+    req: GraphQLRequest,
+) -> GraphQLResponse {
+    let request = req.into_inner().data(state.get_ref().clone());
+    schema.execute(request).await.into()
 }
 
 async fn graphql_playground_handler() -> actix_web::HttpResponse {
