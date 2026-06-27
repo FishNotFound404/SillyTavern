@@ -1,75 +1,15 @@
-use async_graphql::{Context, Object, Result, ID};
+use async_graphql::*;
 use uuid::Uuid;
-
 use crate::state::AppState;
-use super::types::User;
-use super::character_types::Character;
-use super::character_types::WorldInfoEntry;
-use super::chat_types::{Conversation, Message, LLMConfig};
-use crate::repositories::character_repo::CharacterRepository;
-use crate::repositories::world_info_repo::WorldInfoRepository;
+use super::chat_types::*;
 use crate::repositories::conversation_repo::ConversationRepository;
 use crate::repositories::message_repo::MessageRepository;
 use crate::repositories::llm_config_repo::LLMConfigRepository;
 
-pub struct QueryRoot;
+pub struct ChatQueries;
 
 #[Object]
-impl QueryRoot {
-    async fn me(&self, _ctx: &Context<'_>) -> Result<User> {
-        Err("Not implemented".into())
-    }
-
-    async fn characters(
-        &self,
-        ctx: &Context<'_>,
-        limit: Option<i64>,
-        offset: Option<i64>,
-        search: Option<String>,
-        user_id: Option<ID>,
-    ) -> Result<Vec<Character>> {
-        let state = ctx.data::<AppState>()?;
-        let repo = CharacterRepository::new(state.db_pool.clone());
-
-        let limit = limit.unwrap_or(20);
-        let offset = offset.unwrap_or(0);
-
-        let user_id = match user_id {
-            Some(id) => Uuid::parse_str(&id).map_err(|_| "Invalid user ID")?,
-            None => {
-                sqlx::query_as("SELECT id FROM users LIMIT 1")
-                    .fetch_one(&state.db_pool)
-                    .await
-                    .map(|row: (Uuid,)| row.0)
-                    .map_err(|e| format!("Failed to get user: {}", e))?
-            }
-        };
-
-        let characters = repo.find_by_user_id(user_id, limit, offset, search.as_deref()).await?;
-
-        Ok(characters.into_iter().map(Character::from).collect())
-    }
-
-    async fn character(&self, ctx: &Context<'_>, id: ID) -> Result<Option<Character>> {
-        let state = ctx.data::<AppState>()?;
-        let repo = CharacterRepository::new(state.db_pool.clone());
-
-        let character_id = Uuid::parse_str(&id).map_err(|_| "Invalid character ID")?;
-        let character = repo.find_by_id(character_id).await?;
-
-        Ok(character.map(Character::from))
-    }
-
-    async fn world_info_entries(&self, ctx: &Context<'_>, character_id: ID) -> Result<Vec<WorldInfoEntry>> {
-        let state = ctx.data::<AppState>()?;
-        let repo = WorldInfoRepository::new(state.db_pool.clone());
-
-        let char_id = Uuid::parse_str(&character_id).map_err(|_| "Invalid character ID")?;
-        let entries = repo.find_by_character_id(char_id).await?;
-
-        Ok(entries.into_iter().map(WorldInfoEntry::from).collect())
-    }
-
+impl ChatQueries {
     async fn conversations(
         &self,
         ctx: &Context<'_>,

@@ -1,10 +1,13 @@
-use async_graphql::{Schema, EmptySubscription};
+use async_graphql::{Schema, EmptySubscription, MergedObject};
 use super::query::QueryRoot;
-use super::character_queries::CharacterQueries;
 use super::character_mutations::CharacterMutations;
+use super::chat_mutations::ChatMutations;
 
-pub type AppSchema = Schema<QueryRoot, CharacterMutations, EmptySubscription>;
+#[derive(MergedObject)]
+pub struct Mutations(pub CharacterMutations, pub ChatMutations);
+
+pub type AppSchema = Schema<QueryRoot, Mutations, EmptySubscription>;
 
 pub fn create_schema() -> AppSchema {
-    Schema::build(QueryRoot, CharacterMutations, EmptySubscription).finish()
+    Schema::build(QueryRoot, Mutations(CharacterMutations, ChatMutations), EmptySubscription).finish()
 }
