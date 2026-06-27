@@ -9,6 +9,7 @@ export interface Character {
   chat_file_count?: number
   create_date?: string
   date_last_chat?: number
+  tags?: string[]
 }
 
 export interface ChatMessage {

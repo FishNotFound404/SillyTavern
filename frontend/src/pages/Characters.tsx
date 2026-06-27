@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiPost } from '../api/client'
 import { Skeleton, EmptyState, ErrorState, CharacterCardSkeleton } from '../components/ui'
@@ -9,6 +9,8 @@ function Characters() {
   const [characters, setCharacters] = useState<Character[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
 
   const loadCharacters = () => {
     setLoading(true)
@@ -27,6 +29,44 @@ function Characters() {
   useEffect(() => {
     loadCharacters()
   }, [])
+
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    for (const character of characters) {
+      for (const tag of character.tags || []) {
+        tagSet.add(tag)
+      }
+    }
+    return Array.from(tagSet).sort()
+  }, [characters])
+
+  const filteredCharacters = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    return characters.filter((character) => {
+      const matchesQuery =
+        !query ||
+        character.name.toLowerCase().includes(query) ||
+        (character.description?.toLowerCase() || '').includes(query) ||
+        (character.personality?.toLowerCase() || '').includes(query)
+
+      const matchesTags =
+        selectedTags.length === 0 ||
+        selectedTags.every((tag) => (character.tags || []).includes(tag))
+
+      return matchesQuery && matchesTags
+    })
+  }, [characters, searchQuery, selectedTags])
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    )
+  }
+
+  const clearFilters = () => {
+    setSearchQuery('')
+    setSelectedTags([])
+  }
 
   if (loading) {
     return (
@@ -54,17 +94,82 @@ function Characters() {
     )
   }
 
+  const hasFilters = searchQuery.trim() || selectedTags.length > 0
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Characters</h1>
-        <span className="text-gray-400">{characters.length} total</span>
+        <span className="text-gray-400">
+          {hasFilters ? `${filteredCharacters.length} of ${characters.length}` : `${characters.length} total`}
+        </span>
       </div>
 
-      {characters.length === 0 ? (
+      {/* Search */}
+      <div className="relative mb-4">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5 text-gray-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+            />
+          </svg>
+        </div>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by name, description, or personality..."
+          className="w-full bg-gray-800 text-white rounded-lg pl-10 pr-4 py-3 border border-gray-700 focus:border-blue-500 focus:outline-none"
+        />
+      </div>
+
+      {/* Tags */}
+      {allTags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          {allTags.map((tag) => {
+            const selected = selectedTags.includes(tag)
+            return (
+              <button
+                key={tag}
+                onClick={() => toggleTag(tag)}
+                className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                  selected
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'
+                }`}
+              >
+                {tag}
+              </button>
+            )
+          })}
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="text-sm text-gray-400 hover:text-white underline ml-2"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
+      {filteredCharacters.length === 0 ? (
         <EmptyState
-          title="No characters yet"
-          description="Add a character card to the characters folder, or use the legacy UI to create one."
+          title={hasFilters ? 'No matching characters' : 'No characters yet'}
+          description={
+            hasFilters
+              ? 'Try adjusting your search or tags.'
+              : 'Add a character card to the characters folder, or use the legacy UI to create one.'
+          }
           icon={
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -84,7 +189,7 @@ function Characters() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {characters.map((character) => (
+          {filteredCharacters.map((character) => (
             <div
               key={character.avatar}
               onClick={() => navigate(`/character/${encodeURIComponent(character.avatar)}`)}
