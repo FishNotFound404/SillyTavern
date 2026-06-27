@@ -76,7 +76,7 @@ function Characters() {
                   </p>
                 )}
                 <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
-                  <span>{character.chat_size} chats</span>
+                  <span>{(character.chat_file_count ?? character.chat_size) || 0} chats</span>
                   {character.create_date && (
                     <span>{new Date(character.create_date).toLocaleDateString()}</span>
                   )}

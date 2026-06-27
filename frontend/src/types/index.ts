@@ -6,6 +6,7 @@ export interface Character {
   first_mes?: string
   avatar: string
   chat_size: number
+  chat_file_count?: number
   create_date?: string
   date_last_chat?: number
 }

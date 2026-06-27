@@ -342,19 +342,24 @@ async function tryReadImage(imgPath, crop) {
 const calculateChatSize = (charDir) => {
     let chatSize = 0;
     let dateLastChat = 0;
+    let chatFileCount = 0;
 
     if (fs.existsSync(charDir)) {
         const chats = fs.readdirSync(charDir);
         if (Array.isArray(chats) && chats.length) {
             for (const chat of chats) {
-                const chatStat = fs.statSync(path.join(charDir, chat));
+                if (!chat.endsWith('.jsonl')) continue;
+                const chatPath = path.join(charDir, chat);
+                const chatStat = fs.statSync(chatPath);
+                if (!chatStat.isFile()) continue;
                 chatSize += chatStat.size;
                 dateLastChat = Math.max(dateLastChat, chatStat.mtimeMs);
+                chatFileCount++;
             }
         }
     }
 
-    return { chatSize, dateLastChat };
+    return { chatSize, dateLastChat, chatFileCount };
 };
 
 // Calculate the total string length of the data object
@@ -378,6 +383,7 @@ const toShallow = (character) => {
         create_date: character.create_date,
         date_last_chat: character.date_last_chat,
         chat_size: character.chat_size,
+        chat_file_count: character.chat_file_count,
         data_size: character.data_size,
         tags: character.tags,
         data: {
@@ -415,11 +421,13 @@ const processCharacter = async (item, directories, { shallow }) => {
         character.json_data = imgData;
         const charStat = fs.statSync(path.join(directories.characters, item));
         character.date_added = charStat.ctimeMs;
-        character.create_date = jsonObject.create_date || new Date(Math.round(charStat.ctimeMs)).toISOString();
+        const parsedCreateDate = jsonObject.create_date ? new Date(jsonObject.create_date) : new Date(Math.round(charStat.ctimeMs));
+        character.create_date = !isNaN(parsedCreateDate.getTime()) ? parsedCreateDate.toISOString() : new Date(Math.round(charStat.ctimeMs)).toISOString();
         const chatsDirectory = path.join(directories.chats, item.replace('.png', ''));
 
-        const { chatSize, dateLastChat } = calculateChatSize(chatsDirectory);
+        const { chatSize, dateLastChat, chatFileCount } = calculateChatSize(chatsDirectory);
         character.chat_size = chatSize;
+        character.chat_file_count = chatFileCount;
         character.date_last_chat = dateLastChat;
         character.data_size = calculateDataSize(jsonObject?.data);
         return shallow ? toShallow(character) : character;
