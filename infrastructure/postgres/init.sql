@@ -63,36 +63,58 @@ CREATE TABLE IF NOT EXISTS world_info_entries (
 );
 
 -- Conversations table
-CREATE TABLE conversations (
+CREATE TABLE IF NOT EXISTS conversations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     character_id UUID REFERENCES characters(id) ON DELETE SET NULL,
     title VARCHAR(200),
+    model VARCHAR(50),
+    provider VARCHAR(20),
+    metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    metadata JSONB
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_character_id ON conversations(character_id);
+
 -- Messages table
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
     role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
     content TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    metadata JSONB,
-    tokens_used INTEGER
+    tokens_used INTEGER,
+    model VARCHAR(50),
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+
+-- LLM Configs table
+CREATE TABLE IF NOT EXISTS llm_configs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    provider VARCHAR(20) NOT NULL,
+    api_key_encrypted TEXT,
+    model VARCHAR(50) NOT NULL,
+    base_url VARCHAR(500),
+    settings JSONB DEFAULT '{}',
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_configs_user_id ON llm_configs(user_id);
+
 -- Indexes
-CREATE INDEX idx_messages_conversation_id ON messages(conversation_id);
-CREATE INDEX idx_messages_created_at ON messages(created_at);
-CREATE INDEX idx_characters_user_id ON characters(user_id);
-CREATE INDEX idx_characters_is_public ON characters(is_public);
-CREATE INDEX idx_conversations_user_id ON conversations(user_id);
-CREATE INDEX idx_sessions_user_id ON sessions(user_id);
-CREATE INDEX idx_sessions_token_hash ON sessions(token_hash);
-CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_characters_user_id ON characters(user_id);
+CREATE INDEX IF NOT EXISTS idx_characters_is_public ON characters(is_public);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_world_info_character_id ON world_info_entries(character_id);
 CREATE INDEX IF NOT EXISTS idx_world_info_key ON world_info_entries(key);
 CREATE INDEX IF NOT EXISTS idx_characters_tags ON characters USING GIN(tags);
