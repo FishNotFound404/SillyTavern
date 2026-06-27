@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { apiPost } from '../api/client'
 import type { Character } from '../types'
 
 function CharacterDetail() {
@@ -16,17 +17,7 @@ function CharacterDetail() {
       return
     }
 
-    fetch('/api/characters/get', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ avatar_url: decodeURIComponent(avatar) }),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`)
-        }
-        return res.json()
-      })
+    apiPost<Character>('/api/characters/get', { avatar_url: decodeURIComponent(avatar) })
       .then((data) => {
         setCharacter(data)
         setLoading(false)

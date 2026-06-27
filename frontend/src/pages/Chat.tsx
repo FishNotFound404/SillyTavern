@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import { apiPost } from '../api/client'
 import type { Character } from '../types'
 
 interface ChatMessage {
@@ -41,12 +42,7 @@ function Chat() {
       return
     }
 
-    fetch('/api/characters/get', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ avatar_url: avatarUrl }),
-    })
-      .then((res) => res.json())
+    apiPost<Character>('/api/characters/get', { avatar_url: avatarUrl })
       .then((data) => {
         setCharacter(data)
       })
@@ -57,12 +53,7 @@ function Chat() {
   useEffect(() => {
     if (!avatarUrl) return
 
-    fetch('/api/characters/chats', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ avatar_url: avatarUrl }),
-    })
-      .then((res) => res.json())
+    apiPost<ChatFile[]>('/api/characters/chats', { avatar_url: avatarUrl })
       .then((data) => {
         if (Array.isArray(data)) {
           setChatFiles(data)
@@ -85,15 +76,10 @@ function Chat() {
       return
     }
 
-    fetch('/api/chats/get', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    apiPost<ChatMessage[]>('/api/chats/get', {
         avatar_url: avatarUrl,
         file_name: selectedFile,
-      }),
-    })
-      .then((res) => res.json())
+      })
       .then((data) => {
         if (Array.isArray(data)) {
           // Skip the first metadata object

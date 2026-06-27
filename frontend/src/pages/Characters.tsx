@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { apiPost } from '../api/client'
 import type { Character } from '../types'
 
 function Characters() {
@@ -9,13 +10,7 @@ function Characters() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/characters/all', { method: 'POST' })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`)
-        }
-        return res.json()
-      })
+    apiPost<Character[]>('/api/characters/all', {})
       .then((data) => {
         setCharacters(data || [])
         setLoading(false)
