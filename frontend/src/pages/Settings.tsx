@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiGet } from '../api/client'
+import { LoadingState, ErrorState } from '../components/ui'
 
 const MODEL_KEY = 'sillytavern:settings:model'
 
@@ -47,20 +48,15 @@ function Settings() {
   }
 
   if (loading) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
-        <div className="text-gray-400">Loading settings...</div>
-      </div>
-    )
+    return <LoadingState message="Loading settings..." />
   }
 
   if (error) {
     return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
-        <div className="text-red-400">Error: {error}</div>
-      </div>
+      <ErrorState
+        title="Failed to load settings"
+        message={error}
+      />
     )
   }
 

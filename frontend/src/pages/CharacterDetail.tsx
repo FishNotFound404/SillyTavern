@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiPost } from '../api/client'
+import { CharacterDetailSkeleton, ErrorState } from '../components/ui'
 import type { Character } from '../types'
 
 function CharacterDetail() {
@@ -10,13 +11,15 @@ function CharacterDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadCharacter = () => {
     if (!avatar) {
       setError('No character selected')
       setLoading(false)
       return
     }
 
+    setLoading(true)
+    setError(null)
     apiPost<Character>('/api/characters/get', { avatar_url: decodeURIComponent(avatar) })
       .then((data) => {
         setCharacter(data)
@@ -26,27 +29,26 @@ function CharacterDetail() {
         setError(err.message)
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    loadCharacter()
   }, [avatar])
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-gray-400">Loading character...</div>
-      </div>
-    )
+    return <CharacterDetailSkeleton />
   }
 
   if (error || !character) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-red-400">Error: {error || 'Character not found'}</div>
-        <button
-          onClick={() => navigate('/')}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          Back to Characters
-        </button>
-      </div>
+      <ErrorState
+        title="Character not found"
+        message={error || 'The requested character could not be loaded.'}
+        onRetry={() => {
+          if (error) loadCharacter()
+          else navigate('/')
+        }}
+      />
     )
   }
 
@@ -76,7 +78,7 @@ function CharacterDetail() {
               {character.name}
             </h1>
             <div className="mt-2 text-gray-400 text-sm">
-              {character.chat_size} chats
+              {(character.chat_file_count ?? character.chat_size) || 0} chats
             </div>
             {character.create_date && (
               <div className="text-gray-500 text-xs mt-1">
