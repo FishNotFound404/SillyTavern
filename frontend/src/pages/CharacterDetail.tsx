@@ -3,11 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { apiPost } from '../api/client'
 import { CharacterDetailSkeleton, ErrorState } from '../components/ui'
 import type { Character } from '../types'
+import type { WorldInfoSummary } from '../types/worldInfo'
 
 function CharacterDetail() {
   const { avatar } = useParams<{ avatar: string }>()
   const navigate = useNavigate()
   const [character, setCharacter] = useState<Character | null>(null)
+  const [worlds, setWorlds] = useState<WorldInfoSummary[]>([])
+  const [selectedWorld, setSelectedWorld] = useState('')
+  const [savingWorld, setSavingWorld] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -20,9 +24,15 @@ function CharacterDetail() {
 
     setLoading(true)
     setError(null)
-    apiPost<Character>('/api/characters/get', { avatar_url: decodeURIComponent(avatar) })
-      .then((data) => {
-        setCharacter(data)
+    Promise.all([
+      apiPost<Character>('/api/characters/get', { avatar_url: decodeURIComponent(avatar) }),
+      apiPost<WorldInfoSummary[]>('/api/worldinfo/list', {}),
+    ])
+      .then(([charData, worldsData]) => {
+        setCharacter(charData)
+        setWorlds(Array.isArray(worldsData) ? worldsData : [])
+        const currentWorld = charData.world || charData.data?.extensions?.world || ''
+        setSelectedWorld(currentWorld)
         setLoading(false)
       })
       .catch((err) => {
@@ -34,6 +44,21 @@ function CharacterDetail() {
   useEffect(() => {
     loadCharacter()
   }, [avatar])
+
+  const handleSaveWorld = async () => {
+    if (!character) return
+    try {
+      setSavingWorld(true)
+      await apiPost('/api/characters/world', {
+        avatar_url: character.avatar,
+        world: selectedWorld,
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update world info')
+    } finally {
+      setSavingWorld(false)
+    }
+  }
 
   if (loading) {
     return <CharacterDetailSkeleton />
@@ -53,6 +78,7 @@ function CharacterDetail() {
   }
 
   const avatarUrl = `/characters/${encodeURIComponent(character.avatar)}`
+  const currentWorldName = worlds.find((w) => w.file_id === selectedWorld)?.name || selectedWorld
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -131,6 +157,36 @@ function CharacterDetail() {
                 </div>
               </section>
             )}
+
+            <section className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+              <h2 className="text-lg font-semibold text-white mb-3">World Info / Lorebook</h2>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <select
+                  value={selectedWorld}
+                  onChange={(e) => setSelectedWorld(e.target.value)}
+                  className="flex-1 bg-gray-800 text-white rounded-lg px-3 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="">None</option>
+                  {worlds.map((world) => (
+                    <option key={world.file_id} value={world.file_id}>
+                      {world.name || world.file_id}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleSaveWorld}
+                  disabled={savingWorld}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                >
+                  {savingWorld ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+              {selectedWorld && (
+                <p className="text-sm text-gray-500 mt-2">
+                  Associated with <span className="text-blue-400">{currentWorldName}</span>
+                </p>
+              )}
+            </section>
           </div>
         </div>
       </div>

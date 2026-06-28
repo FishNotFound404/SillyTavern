@@ -1145,6 +1145,52 @@ router.post('/edit', validateAvatarUrlMiddleware, async function (request, respo
     }
 });
 
+router.post('/world', validateAvatarUrlMiddleware, async function (request, response) {
+    try {
+        if (!request.body || !request.body.avatar_url) {
+            return response.sendStatus(400);
+        }
+
+        const avatarUrl = request.body.avatar_url;
+        const worldName = request.body.world || '';
+        const avatarPath = path.join(request.user.directories.characters, avatarUrl);
+
+        if (!fs.existsSync(avatarPath)) {
+            return response.sendStatus(404);
+        }
+
+        const existingData = await readCharacterData(avatarPath);
+        if (!existingData) {
+            return response.sendStatus(500);
+        }
+
+        const char = JSON.parse(existingData);
+        _.set(char, 'data.extensions.world', worldName);
+
+        if (worldName) {
+            const file = readWorldInfoFile(request.user.directories, worldName, false);
+            if (file && file.originalData) {
+                _.set(char, 'data.character_book', file.originalData);
+            } else if (file && file.entries) {
+                _.set(char, 'data.character_book', convertWorldInfoToCharacterBook(worldName, file.entries));
+            }
+        } else {
+            _.unset(char, 'data.character_book');
+        }
+
+        const fileName = avatarUrl.replace('.png', '');
+        const success = await writeCharacterData(avatarPath, JSON.stringify(char), fileName, request);
+        if (!success) {
+            return response.sendStatus(500);
+        }
+
+        return response.send({ ok: true });
+    } catch (error) {
+        console.error('Error updating character world info:', error);
+        return response.sendStatus(500);
+    }
+});
+
 router.post('/edit-avatar', validateAvatarUrlMiddleware, async function (request, response) {
     try {
         if (!request.file) {

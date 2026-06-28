@@ -10,6 +10,12 @@ export interface Character {
   create_date?: string
   date_last_chat?: number
   tags?: string[]
+  world?: string
+  data?: {
+    extensions?: {
+      world?: string
+    }
+  }
 }
 
 export interface ChatMessage {
