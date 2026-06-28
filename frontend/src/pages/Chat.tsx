@@ -238,11 +238,10 @@ function Chat() {
     }
   }, [messages.length])
 
-  // Fetch character details
+  // Redirect to character list if no character is selected
   useEffect(() => {
     if (!avatarUrl) {
-      setError('No character selected')
-      setLoading(false)
+      navigate('/')
       return
     }
 
