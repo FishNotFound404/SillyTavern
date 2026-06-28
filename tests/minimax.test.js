@@ -2,6 +2,9 @@ import { jest } from '@jest/globals';
 import express from 'express';
 import request from 'supertest';
 
+// Disable retry backoff in unit tests.
+process.env.MINIMAX_RETRY_BASE_DELAY_MS = '0';
+
 const fetchMock = jest.fn();
 const readSecretMock = jest.fn();
 
@@ -121,6 +124,53 @@ describe('MiniMax endpoints', () => {
 
             expect(response.status).toBe(500);
             expect(response.body.error).toMatch(/Authentication failed/i);
+        });
+
+        test('retries transient network errors and succeeds', async () => {
+            readSecretMock.mockReturnValue('fake-key');
+            fetchMock
+                .mockRejectedValueOnce(Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }))
+                .mockRejectedValueOnce(Object.assign(new Error('fetch failed'), { code: 'ECONNRESET' }))
+                .mockResolvedValue({
+                    ok: true,
+                    json: async () => ({
+                        choices: [{ message: { content: 'Recovered!' } }],
+                    }),
+                });
+
+            const response = await request(app)
+                .post('/api/minimax/chat/generate')
+                .send({ messages: [{ role: 'user', content: 'Hi' }] });
+
+            expect(response.status).toBe(200);
+            expect(response.body).toEqual({ content: 'Recovered!' });
+            expect(fetchMock).toHaveBeenCalledTimes(3);
+        });
+
+        test('returns 500 after exhausting retries on network errors', async () => {
+            readSecretMock.mockReturnValue('fake-key');
+            fetchMock.mockRejectedValue(Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }));
+
+            const response = await request(app)
+                .post('/api/minimax/chat/generate')
+                .send({ messages: [{ role: 'user', content: 'Hi' }] });
+
+            expect(response.status).toBe(500);
+            expect(response.body.error).toMatch(/socket hang up/i);
+            expect(fetchMock).toHaveBeenCalledTimes(4); // initial + 3 retries
+        });
+
+        test('does not retry non-network errors', async () => {
+            readSecretMock.mockReturnValue('fake-key');
+            fetchMock.mockRejectedValue(new TypeError('Invalid URL'));
+
+            const response = await request(app)
+                .post('/api/minimax/chat/generate')
+                .send({ messages: [{ role: 'user', content: 'Hi' }] });
+
+            expect(response.status).toBe(500);
+            expect(response.body.error).toMatch(/Invalid URL/i);
+            expect(fetchMock).toHaveBeenCalledTimes(1);
         });
     });
 });

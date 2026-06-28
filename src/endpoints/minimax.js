@@ -4,6 +4,45 @@ import { readSecret, SECRET_KEYS } from './secrets.js';
 
 export const router = express.Router();
 
+const MAX_RETRIES = Number(process.env.MINIMAX_MAX_RETRIES ?? 3);
+const RETRY_BASE_DELAY_MS = Number(process.env.MINIMAX_RETRY_BASE_DELAY_MS ?? 1000);
+
+const RETRYABLE_ERROR_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'EPIPE', 'EAI_AGAIN']);
+const RETRYABLE_ERROR_MESSAGES = ['socket hang up', 'fetch failed', 'Network request failed'];
+
+/**
+ * Determine whether a thrown fetch error is worth retrying.
+ * HTTP-level errors (4xx/5xx responses) are NOT caught here; they return
+ * a Response object and are handled separately.
+ */
+function isRetryableError(error) {
+    if (!error || typeof error !== 'object') return false;
+    if (error.name === 'AbortError') return false;
+    if (error.code && RETRYABLE_ERROR_CODES.has(error.code)) return true;
+    const message = error.message || '';
+    return RETRYABLE_ERROR_MESSAGES.some((needle) => message.includes(needle));
+}
+
+/**
+ * Fetch wrapper with exponential backoff for transient network failures.
+ */
+async function fetchWithRetry(url, options = {}) {
+    let lastError;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            return await fetch(url, options);
+        } catch (error) {
+            lastError = error;
+            if (!isRetryableError(error)) throw error;
+            if (attempt === MAX_RETRIES) break;
+            const delay = RETRY_BASE_DELAY_MS * (2 ** attempt);
+            console.warn(`MiniMax chat: network error on attempt ${attempt + 1}/${MAX_RETRIES + 1}, retrying in ${delay}ms...`, error.message);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+    }
+    throw lastError;
+}
+
 // Audio format MIME type mapping
 const getAudioMimeType = (format) => {
     const mimeTypes = {
@@ -273,7 +312,7 @@ router.post('/chat/generate', async (request, response) => {
 
         const apiUrl = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
 
-        const apiResponse = await fetch(apiUrl, {
+        const apiResponse = await fetchWithRetry(apiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
