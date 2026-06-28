@@ -28,7 +28,7 @@ export default function Chat() {
 
   useEffect(() => {
     if (streamData?.messageStream) {
-      const { chunk, done, message } = streamData.messageStream;
+      const { chunk, done } = streamData.messageStream;
       
       if (done) {
         setStreamingContent('');

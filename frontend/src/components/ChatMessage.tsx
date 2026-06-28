@@ -7,9 +7,10 @@ interface ChatMessageProps {
     content: string;
     createdAt: string;
   };
+  isStreaming?: boolean;
 }
 
-export default function ChatMessage({ message }: ChatMessageProps) {
+export default function ChatMessage({ message, isStreaming }: ChatMessageProps) {
   const isUser = message.role === 'user';
   
   return (
@@ -24,7 +25,12 @@ export default function ChatMessage({ message }: ChatMessageProps) {
         <div className="text-sm opacity-75 mb-1">
           {isUser ? 'You' : 'Assistant'}
         </div>
-        <div className="whitespace-pre-wrap">{message.content}</div>
+        <div className="whitespace-pre-wrap">
+          {message.content}
+          {isStreaming && (
+            <span className="inline-block w-2 h-4 bg-gray-400 ml-1 animate-pulse" />
+          )}
+        </div>
       </div>
     </div>
   );
