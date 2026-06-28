@@ -67,6 +67,13 @@ function ChatList() {
     }
   }, [])
 
+  const parseChatTimestamp = (fileName: string): number => {
+    const match = fileName.match(/(\d{4})-(\d{2})-(\d{2})@(\d{2})h(\d{2})m(\d{2})s(\d+)ms/)
+    if (!match) return 0
+    const [, year, month, day, hour, minute, second, ms] = match
+    return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}.${ms}`).getTime()
+  }
+
   const items = useMemo<ChatListItem[]>(() => {
     const list: ChatListItem[] = []
     for (const character of characters) {
@@ -75,8 +82,8 @@ function ChatList() {
         list.push({ character, file })
       }
     }
-    // Newest first based on filename timestamp
-    return list.sort((a, b) => b.file.file_name.localeCompare(a.file.file_name))
+    // Newest first based on the actual timestamp embedded in the filename
+    return list.sort((a, b) => parseChatTimestamp(b.file.file_name) - parseChatTimestamp(a.file.file_name))
   }, [characters, chatFilesByCharacter])
 
   const formatChatDate = (fileName: string) => {
