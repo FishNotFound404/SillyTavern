@@ -6,6 +6,8 @@ import Characters from './pages/Characters'
 import CharacterDetail from './pages/CharacterDetail'
 import CharacterEdit from './pages/CharacterEdit'
 import ChatRouter from './pages/ChatRouter'
+import Groups from './pages/Groups'
+import GroupEdit from './pages/GroupEdit'
 import Settings from './pages/Settings'
 import Personas from './pages/Personas'
 import WorldInfo from './pages/WorldInfo'
@@ -27,6 +29,8 @@ function App() {
             <Route path="/character/:avatar" element={<CharacterDetail />} />
             <Route path="/character/:avatar/edit" element={<CharacterEdit />} />
             <Route path="/chat" element={<ChatRouter />} />
+            <Route path="/groups" element={<Groups />} />
+            <Route path="/groups/new" element={<GroupEdit />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/personas" element={<Personas />} />
             <Route path="/world-info" element={<WorldInfo />} />

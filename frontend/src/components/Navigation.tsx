@@ -22,6 +22,9 @@ function Navigation() {
             <NavLink to="/" end className={linkClass}>
               Characters
             </NavLink>
+            <NavLink to="/groups" className={linkClass}>
+              Groups
+            </NavLink>
             <NavLink to="/chat" className={linkClass}>
               Chat
             </NavLink>

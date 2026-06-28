@@ -1,4 +1,6 @@
 export * from './character'
+export * from './group'
+export * from './persona'
 
 export interface Character {
   name: string
