@@ -18,6 +18,12 @@ import {
   DEFAULT_CONNECTION,
 } from '../utils/connection'
 import { streamCompletion } from '../utils/stream'
+import type { PersonaState } from '../types/persona'
+import {
+  readPersonaState,
+  getDefaultPersona,
+  getPersonaThumbnailUrl,
+} from '../utils/persona'
 
 interface ChatMessage {
   name: string
@@ -67,7 +73,7 @@ function generateChatFileName(characterName: string) {
   return `${characterName} - ${datePart}@${timePart}.jsonl`
 }
 
-function createChatMetadata(characterName: string): ChatMetadata {
+function createChatMetadata(characterName: string, userName: string): ChatMetadata {
   return {
     chat_metadata: {
       integrity: generateUUID(),
@@ -78,7 +84,7 @@ function createChatMetadata(characterName: string): ChatMetadata {
       note_role: 0,
       tainted: true,
     },
-    user_name: 'User',
+    user_name: userName,
     character_name: characterName,
   }
 }
@@ -89,6 +95,8 @@ interface ChatMessageItemProps {
   editingIndex: number | null
   editText: string
   generating: boolean
+  userAvatar?: string
+  characterAvatar?: string
   onEditStart: (index: number, text: string) => void
   onEditSave: (index: number) => void
   onEditCancel: () => void
@@ -103,6 +111,8 @@ function ChatMessageItem({
   editingIndex,
   editText,
   generating,
+  userAvatar,
+  characterAvatar,
   onEditStart,
   onEditSave,
   onEditCancel,
@@ -111,7 +121,14 @@ function ChatMessageItem({
   onRegenerate,
 }: ChatMessageItemProps) {
   return (
-    <div className={`flex ${message.is_user ? 'justify-end' : 'justify-start'} group`}>
+    <div className={`flex ${message.is_user ? 'justify-end' : 'justify-start'} group gap-3`}>
+      {!message.is_user && characterAvatar && (
+        <img
+          src={characterAvatar}
+          alt={message.name}
+          className="w-8 h-8 rounded-full object-cover self-end mb-1"
+        />
+      )}
       <div
         className={`relative max-w-[80%] rounded-2xl px-5 py-3 ${
           message.is_user
@@ -205,6 +222,13 @@ function ChatMessageItem({
           </div>
         )}
       </div>
+      {message.is_user && userAvatar && (
+        <img
+          src={userAvatar}
+          alt={message.name}
+          className="w-8 h-8 rounded-full object-cover self-end mb-1"
+        />
+      )}
     </div>
   )
 }
@@ -226,11 +250,16 @@ function Chat() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
   const [connection, setConnection] = useState<ConnectionSettings>(DEFAULT_CONNECTION)
+  const [personaState, setPersonaState] = useState<PersonaState>({ personas: [], defaultId: null })
   const messagesParentRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const messages = chatData.filter(isChatMessage)
+  const activePersona = getDefaultPersona(personaState)
+  const activePersonaName = activePersona?.name || 'User'
+  const activePersonaAvatar = activePersona ? getPersonaThumbnailUrl(activePersona.avatar) : undefined
+  const characterAvatar = character ? `/characters/${encodeURIComponent(character.avatar)}` : undefined
 
   const virtualizer = useVirtualizer({
     count: messages.length,
@@ -316,7 +345,7 @@ function Chat() {
         if (Array.isArray(data) && data.length > 0) {
           setChatData(data)
         } else {
-          setChatData([createChatMetadata(character?.name || 'Character')])
+          setChatData([createChatMetadata(character?.name || 'Character', activePersonaName)])
         }
       })
       .catch((err) => setError(err.message))
@@ -337,8 +366,12 @@ function Chat() {
           ? (JSON.parse(data.settings) as Record<string, unknown>)
           : {}
         setConnection(readConnectionSettings(parsed))
+        setPersonaState(readPersonaState(parsed))
       })
-      .catch(() => setConnection(DEFAULT_CONNECTION))
+      .catch(() => {
+        setConnection(DEFAULT_CONNECTION)
+        setPersonaState({ personas: [], defaultId: null })
+      })
   }, [])
 
   const buildSystemPrompt = (loreContents?: string[]) => {
@@ -452,7 +485,7 @@ function Chat() {
 
     const fileName = generateChatFileName(character.name)
     const fileId = fileName.replace(/\.jsonl$/, '')
-    const initialData: ChatLine[] = [createChatMetadata(character.name)]
+    const initialData: ChatLine[] = [createChatMetadata(character.name, activePersonaName)]
 
     if (character.first_mes) {
       initialData.push({
@@ -485,7 +518,7 @@ function Chat() {
     if (!currentFileId) {
       const fileName = generateChatFileName(character.name)
       currentFileId = fileName.replace(/\.jsonl$/, '')
-      const initialData: ChatLine[] = [createChatMetadata(character.name)]
+      const initialData: ChatLine[] = [createChatMetadata(character.name, activePersonaName)]
 
       if (character.first_mes) {
         initialData.push({
@@ -513,7 +546,7 @@ function Chat() {
 
     const userText = input.trim()
     const userMessage: ChatMessage = {
-      name: 'You',
+      name: activePersonaName,
       is_user: true,
       mes: userText,
       send_date: new Date().toISOString(),
@@ -541,7 +574,7 @@ function Chat() {
         systemPrompt: buildSystemPrompt(loreContents),
         historyMessages,
         userMessage: userText,
-        userName: 'User',
+        userName: activePersonaName,
         charName: character.name,
       })
 
@@ -649,7 +682,7 @@ function Chat() {
       const { endpoint, body } = buildGenerationRequest(connection, {
         systemPrompt: buildSystemPrompt(loreContents),
         historyMessages,
-        userName: 'User',
+        userName: activePersonaName,
         charName: character.name,
       })
 
@@ -718,6 +751,24 @@ function Chat() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/personas')}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-800 text-gray-200 rounded-lg hover:bg-gray-700 border border-gray-700"
+            title="Manage personas"
+          >
+            {activePersonaAvatar ? (
+              <img
+                src={activePersonaAvatar}
+                alt={activePersonaName}
+                className="w-5 h-5 rounded-full object-cover"
+              />
+            ) : (
+              <span className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-xs">
+                {activePersonaName.charAt(0).toUpperCase()}
+              </span>
+            )}
+            <span>{activePersonaName}</span>
+          </button>
           <button
             onClick={handleNewChat}
             disabled={!character}
@@ -842,6 +893,8 @@ function Chat() {
                     editingIndex={editingIndex}
                     editText={editText}
                     generating={generating}
+                    userAvatar={activePersonaAvatar}
+                    characterAvatar={characterAvatar}
                     onEditStart={handleEditStart}
                     onEditSave={handleEditSave}
                     onEditCancel={handleEditCancel}

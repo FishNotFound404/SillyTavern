@@ -28,6 +28,9 @@ function Navigation() {
             <NavLink to="/world-info" className={linkClass}>
               World Info
             </NavLink>
+            <NavLink to="/personas" className={linkClass}>
+              Personas
+            </NavLink>
             <NavLink to="/settings" className={linkClass}>
               Settings
             </NavLink>
