@@ -10,16 +10,15 @@ export interface ProviderConfig {
   label: string
   secretKey: string
   defaultModel: string
-  endpointType: 'minimax' | 'chat-completions'
 }
 
 export const PROVIDER_CONFIG: ProviderConfig[] = [
-  { key: 'minimax', label: 'MiniMax', secretKey: 'api_key_minimax', defaultModel: 'MiniMax-M3', endpointType: 'minimax' },
-  { key: 'openai', label: 'OpenAI', secretKey: 'api_key_openai', defaultModel: 'gpt-4o-mini', endpointType: 'chat-completions' },
-  { key: 'claude', label: 'Anthropic Claude', secretKey: 'api_key_claude', defaultModel: 'claude-3-5-sonnet-latest', endpointType: 'chat-completions' },
-  { key: 'makersuite', label: 'Google (MakerSuite)', secretKey: 'api_key_makersuite', defaultModel: 'gemini-1.5-flash-latest', endpointType: 'chat-completions' },
-  { key: 'openrouter', label: 'OpenRouter', secretKey: 'api_key_openrouter', defaultModel: 'openai/gpt-4o-mini', endpointType: 'chat-completions' },
-  { key: 'deepseek', label: 'DeepSeek', secretKey: 'api_key_deepseek', defaultModel: 'deepseek-chat', endpointType: 'chat-completions' },
+  { key: 'minimax', label: 'MiniMax', secretKey: 'api_key_minimax', defaultModel: 'MiniMax-M3' },
+  { key: 'openai', label: 'OpenAI', secretKey: 'api_key_openai', defaultModel: 'gpt-4o-mini' },
+  { key: 'claude', label: 'Anthropic Claude', secretKey: 'api_key_claude', defaultModel: 'claude-3-5-sonnet-latest' },
+  { key: 'makersuite', label: 'Google (MakerSuite)', secretKey: 'api_key_makersuite', defaultModel: 'gemini-1.5-flash-latest' },
+  { key: 'openrouter', label: 'OpenRouter', secretKey: 'api_key_openrouter', defaultModel: 'openai/gpt-4o-mini' },
+  { key: 'deepseek', label: 'DeepSeek', secretKey: 'api_key_deepseek', defaultModel: 'deepseek-chat' },
 ]
 
 export function getProviderConfig(provider: ChatProvider): ProviderConfig {
@@ -35,6 +34,7 @@ export const DEFAULT_CONNECTION: ConnectionSettings = {
   model: getDefaultModel('minimax'),
   temperature: 0.7,
   maxTokens: 1024,
+  stream: true,
 }
 
 export interface GenerationRequest {
@@ -54,7 +54,6 @@ export function buildGenerationRequest(
   settings: ConnectionSettings,
   options: GenerationOptions,
 ): GenerationRequest {
-  const config = getProviderConfig(settings.provider)
   const messages: ApiMessage[] = [
     { role: 'system', content: options.systemPrompt },
     ...options.historyMessages.map((m) => ({
@@ -67,18 +66,6 @@ export function buildGenerationRequest(
     messages.push({ role: 'user', content: options.userMessage })
   }
 
-  if (config.endpointType === 'minimax') {
-    return {
-      endpoint: '/api/minimax/chat/generate',
-      body: {
-        messages,
-        model: settings.model,
-        temperature: settings.temperature,
-        max_tokens: settings.maxTokens,
-      },
-    }
-  }
-
   return {
     endpoint: '/api/backends/chat-completions/generate',
     body: {
@@ -88,21 +75,14 @@ export function buildGenerationRequest(
       chat_completion_source: settings.provider,
       temperature: settings.temperature,
       max_tokens: settings.maxTokens,
-      stream: false,
+      stream: settings.stream,
       user_name: options.userName || 'User',
       char_name: options.charName || 'Character',
     },
   }
 }
 
-export function parseGenerationResponse(provider: ChatProvider, data: Record<string, unknown>): string {
-  const config = getProviderConfig(provider)
-
-  if (config.endpointType === 'minimax') {
-    const content = (data as { content?: string }).content
-    return content || '[No response]'
-  }
-
+export function parseGenerationResponse(data: Record<string, unknown>): string {
   if (data.error && typeof data.error === 'object' && data.error !== null) {
     const message = (data.error as { message?: string }).message
     if (message) throw new Error(message)
@@ -133,6 +113,7 @@ export function readConnectionSettings(settings: Record<string, unknown>): Conne
     model: (partial.model as string) || getDefaultModel(provider),
     temperature: typeof partial.temperature === 'number' ? partial.temperature : 0.7,
     maxTokens: typeof partial.maxTokens === 'number' ? partial.maxTokens : 1024,
+    stream: typeof partial.stream === 'boolean' ? partial.stream : true,
   }
 }
 
@@ -144,4 +125,22 @@ export function writeConnectionSettings(
     ...settings,
     [SETTINGS_KEY]: connection,
   }
+}
+
+export function extractStreamDelta(data: Record<string, unknown>): string {
+  if (data.error && typeof data.error === 'object' && data.error !== null) {
+    const message = (data.error as { message?: string }).message
+    if (message) throw new Error(message)
+  }
+
+  if (data.error === true) {
+    throw new Error('Generation failed')
+  }
+
+  const choices = (data as { choices?: Array<{ delta?: { content?: string; text?: string } }> }).choices
+  if (Array.isArray(choices) && choices.length > 0) {
+    return choices[0].delta?.content || choices[0].delta?.text || ''
+  }
+
+  return ''
 }

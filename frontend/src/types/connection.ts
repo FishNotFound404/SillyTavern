@@ -11,4 +11,5 @@ export interface ConnectionSettings {
   model: string
   temperature: number
   maxTokens: number
+  stream: boolean
 }

@@ -10,15 +10,16 @@ OUT_DIR = 'docs/images'
 
 
 def mock_generate(route: Route) -> None:
-    """Return a fast mock reply so the smoke test doesn't need a real API key."""
-    url = route.request.url
-    if 'api/backends/chat-completions/generate' in url:
-        body = json.dumps({
-            'choices': [{'message': {'content': 'Hello! This is a mock reply from Seraphina.'}}],
-        })
-    else:
-        body = json.dumps({'content': 'Hello! This is a mock reply from Seraphina.'})
-    route.fulfill(status=200, content_type='application/json', body=body)
+    """Return a fast mock SSE stream so the smoke test doesn't need a real API key."""
+    sse_body = (
+        'data: {"choices":[{"delta":{"content":"Hello!"}}]}\n\n'
+        'data: {"choices":[{"delta":{"content":" This is"}}]}\n\n'
+        'data: {"choices":[{"delta":{"content":" a mock"}}]}\n\n'
+        'data: {"choices":[{"delta":{"content":" reply"}}]}\n\n'
+        'data: {"choices":[{"delta":{"content":" from Seraphina."}}]}\n\n'
+        'data: [DONE]\n\n'
+    )
+    route.fulfill(status=200, content_type='text/event-stream', body=sse_body)
 
 
 def screenshot(page: Page, name: str) -> None:
@@ -34,7 +35,6 @@ def run() -> int:
 
         errors = []
         page.on('pageerror', lambda err: errors.append(str(err)))
-        page.route('**/api/minimax/chat/generate', mock_generate)
         page.route('**/api/backends/chat-completions/generate', mock_generate)
         def log_console(msg):
             if msg.type == 'error':

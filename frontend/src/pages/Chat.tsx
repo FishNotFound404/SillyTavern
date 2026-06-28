@@ -14,10 +14,10 @@ import { gatherMatchingLore } from '../utils/lorebook'
 import type { ConnectionSettings } from '../types/connection'
 import {
   buildGenerationRequest,
-  parseGenerationResponse,
   readConnectionSettings,
   DEFAULT_CONNECTION,
 } from '../utils/connection'
+import { streamCompletion } from '../utils/stream'
 
 interface ChatMessage {
   name: string
@@ -520,16 +520,23 @@ function Chat() {
     }
 
     const nextChatData = [...currentChatData, userMessage]
-    setChatData(nextChatData)
+    const historyMessages = currentChatData.filter(isChatMessage)
+    const contextText = [...historyMessages.map((m) => m.mes), userText].join('\n')
+    const loreContents = gatherMatchingLore(character.data?.character_book, contextText)
+
+    const reply: ChatMessage = {
+      name: character.name,
+      is_user: false,
+      mes: '',
+      send_date: new Date().toISOString(),
+    }
+    let workingChat: ChatLine[] = [...nextChatData, reply]
+    setChatData(workingChat)
     setInput('')
     setGenerating(true)
     abortControllerRef.current = new AbortController()
 
     try {
-      const historyMessages = currentChatData.filter(isChatMessage)
-      const contextText = [...historyMessages.map((m) => m.mes), userText].join('\n')
-      const loreContents = gatherMatchingLore(character.data?.character_book, contextText)
-
       const { endpoint, body } = buildGenerationRequest(connection, {
         systemPrompt: buildSystemPrompt(loreContents),
         historyMessages,
@@ -537,46 +544,39 @@ function Chat() {
         userName: 'User',
         charName: character.name,
       })
-      const data = await apiPost<Record<string, unknown>>(endpoint, body, abortControllerRef.current.signal)
-      const replyText = parseGenerationResponse(connection.provider, data)
 
-      const reply: ChatMessage = {
-        name: character.name,
-        is_user: false,
-        mes: replyText,
-        send_date: new Date().toISOString(),
+      let streamedText = ''
+      for await (const delta of streamCompletion(endpoint, body, abortControllerRef.current.signal)) {
+        streamedText += delta
+        workingChat = [...workingChat.slice(0, -1), { ...reply, mes: streamedText }]
+        setChatData(workingChat)
       }
 
-      const finalChatData = [...nextChatData, reply]
-      setChatData(finalChatData)
       await apiPost('/api/chats/save', {
         avatar_url: avatarUrl,
         file_name: currentFileId,
-        chat: finalChatData,
+        chat: workingChat,
       })
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         await apiPost('/api/chats/save', {
           avatar_url: avatarUrl,
           file_name: currentFileId,
-          chat: nextChatData,
+          chat: workingChat,
         })
         return
       }
 
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      const errorReply: ChatMessage = {
-        name: character.name,
-        is_user: false,
+      workingChat = [...workingChat.slice(0, -1), {
+        ...reply,
         mes: `[Error generating reply: ${errorMessage}]`,
-        send_date: new Date().toISOString(),
-      }
-      const finalChatData = [...nextChatData, errorReply]
-      setChatData(finalChatData)
+      }]
+      setChatData(workingChat)
       await apiPost('/api/chats/save', {
         avatar_url: avatarUrl,
         file_name: currentFileId,
-        chat: finalChatData,
+        chat: workingChat,
       })
     } finally {
       setGenerating(false)
@@ -631,44 +631,49 @@ function Chat() {
     setGenerating(true)
     abortControllerRef.current = new AbortController()
 
-    try {
-      const contextText = historyMessages.map((m) => m.mes).join('\n')
-      const loreContents = gatherMatchingLore(character.data?.character_book, contextText)
+    const contextText = historyMessages.map((m) => m.mes).join('\n')
+    const loreContents = gatherMatchingLore(character.data?.character_book, contextText)
 
+    const reply: ChatMessage = {
+      name: character.name,
+      is_user: false,
+      mes: '',
+      send_date: new Date().toISOString(),
+    }
+    let workingChat: ChatLine[] = [...truncated, reply]
+    setChatData(workingChat)
+    setGenerating(true)
+    abortControllerRef.current = new AbortController()
+
+    try {
       const { endpoint, body } = buildGenerationRequest(connection, {
         systemPrompt: buildSystemPrompt(loreContents),
         historyMessages,
         userName: 'User',
         charName: character.name,
       })
-      const data = await apiPost<Record<string, unknown>>(endpoint, body, abortControllerRef.current.signal)
-      const replyText = parseGenerationResponse(connection.provider, data)
-      const reply: ChatMessage = {
-        name: character.name,
-        is_user: false,
-        mes: replyText,
-        send_date: new Date().toISOString(),
+
+      let streamedText = ''
+      for await (const delta of streamCompletion(endpoint, body, abortControllerRef.current.signal)) {
+        streamedText += delta
+        workingChat = [...workingChat.slice(0, -1), { ...reply, mes: streamedText }]
+        setChatData(workingChat)
       }
 
-      const finalChatData = [...truncated, reply]
-      setChatData(finalChatData)
-      await saveChatData(finalChatData)
+      await saveChatData(workingChat)
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        await saveChatData(truncated)
+        await saveChatData(workingChat)
         return
       }
 
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      const errorReply: ChatMessage = {
-        name: character.name,
-        is_user: false,
+      workingChat = [...workingChat.slice(0, -1), {
+        ...reply,
         mes: `[Error generating reply: ${errorMessage}]`,
-        send_date: new Date().toISOString(),
-      }
-      const finalChatData = [...truncated, errorReply]
-      setChatData(finalChatData)
-      await saveChatData(finalChatData)
+      }]
+      setChatData(workingChat)
+      await saveChatData(workingChat)
     } finally {
       setGenerating(false)
       abortControllerRef.current = null
