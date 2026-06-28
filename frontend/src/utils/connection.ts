@@ -1,4 +1,4 @@
-import type { ChatProvider, ConnectionSettings } from '../types/connection'
+import type { ChatProvider, ConnectionSettings, MiniMaxEndpoint } from '../types/connection'
 
 export interface ApiMessage {
   role: 'system' | 'user' | 'assistant'
@@ -35,6 +35,7 @@ export const DEFAULT_CONNECTION: ConnectionSettings = {
   temperature: 0.7,
   maxTokens: 1024,
   stream: true,
+  minimaxEndpoint: 'cn',
 }
 
 export interface GenerationRequest {
@@ -78,6 +79,9 @@ export function buildGenerationRequest(
       stream: settings.stream,
       user_name: options.userName || 'User',
       char_name: options.charName || 'Character',
+      ...(settings.provider === 'minimax'
+        ? { minimax_endpoint: settings.minimaxEndpoint }
+        : {}),
     },
   }
 }
@@ -108,12 +112,17 @@ export function readConnectionSettings(settings: Record<string, unknown>): Conne
   const raw = settings[SETTINGS_KEY]
   const partial = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
   const provider = (partial.provider as ChatProvider) || 'minimax'
+  const fallbackEndpoint =
+    (settings.minimax_endpoint as MiniMaxEndpoint) ||
+    ((settings.api as Record<string, unknown> | undefined)?.minimax_endpoint as MiniMaxEndpoint) ||
+    'cn'
   return {
     provider: PROVIDER_CONFIG.some((p) => p.key === provider) ? provider : 'minimax',
     model: (partial.model as string) || getDefaultModel(provider),
     temperature: typeof partial.temperature === 'number' ? partial.temperature : 0.7,
     maxTokens: typeof partial.maxTokens === 'number' ? partial.maxTokens : 1024,
     stream: typeof partial.stream === 'boolean' ? partial.stream : true,
+    minimaxEndpoint: (partial.minimaxEndpoint as MiniMaxEndpoint) || fallbackEndpoint,
   }
 }
 

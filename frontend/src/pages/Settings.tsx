@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from '../api/client'
 import { LoadingState, ErrorState } from '../components/ui'
-import type { ChatProvider, ConnectionSettings } from '../types/connection'
+import type { ChatProvider, ConnectionSettings, MiniMaxEndpoint } from '../types/connection'
 import {
   PROVIDER_CONFIG,
   DEFAULT_CONNECTION,
@@ -92,7 +92,12 @@ function Settings() {
       ...prev,
       provider,
       model: getDefaultModel(provider),
+      minimaxEndpoint: prev.minimaxEndpoint || 'cn',
     }))
+  }
+
+  const handleMinimaxEndpointChange = (minimaxEndpoint: MiniMaxEndpoint) => {
+    setConnection((prev) => ({ ...prev, minimaxEndpoint }))
   }
 
   const handleSaveConnection = async () => {
@@ -226,6 +231,26 @@ function Settings() {
                 Select the provider matching the API key you configure below.
               </p>
             </div>
+
+            {connection.provider === 'minimax' && (
+              <div>
+                <label htmlFor="minimaxEndpoint" className="block text-sm font-medium text-gray-300 mb-2">
+                  MiniMax Endpoint
+                </label>
+                <select
+                  id="minimaxEndpoint"
+                  value={connection.minimaxEndpoint}
+                  onChange={(e) => handleMinimaxEndpointChange(e.target.value as MiniMaxEndpoint)}
+                  className="w-full bg-gray-900 text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="cn">China (api.minimaxi.com)</option>
+                  <option value="global">Global (api.minimax.io)</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-2">
+                  Match this to the region your API key was issued for.
+                </p>
+              </div>
+            )}
 
             <div>
               <label htmlFor="model" className="block text-sm font-medium text-gray-300 mb-2">

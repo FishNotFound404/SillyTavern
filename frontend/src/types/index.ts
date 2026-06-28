@@ -1,9 +1,12 @@
+export * from './character'
+
 export interface Character {
   name: string
   description?: string
   personality?: string
   scenario?: string
   first_mes?: string
+  mes_example?: string
   avatar: string
   chat_size: number
   chat_file_count?: number
@@ -11,9 +14,30 @@ export interface Character {
   date_last_chat?: number
   tags?: string[]
   world?: string
+  json_data?: string
+  chat?: string
+  talkativeness?: number
+  creator_notes?: string
+  system_prompt?: string
+  post_history_instructions?: string
+  creator?: string
+  character_version?: string
   data?: {
+    name?: string
+    description?: string
+    personality?: string
+    scenario?: string
+    first_mes?: string
+    mes_example?: string
+    creator_notes?: string
+    system_prompt?: string
+    post_history_instructions?: string
+    creator?: string
+    character_version?: string
+    tags?: string[]
     extensions?: {
       world?: string
+      talkativeness?: number
     }
     character_book?: {
       name?: string

@@ -9,10 +9,14 @@ This branch adds a modern React + TypeScript + Vite + Tailwind frontend while ke
 ### Features
 
 - **Character gallery** with AI-generated portraits
+- **Character creation & editing** — build new characters or edit existing cards from the React UI
 - **Character detail** view with description, personality, scenario, and first message
-- **Chat interface** with persistent `.jsonl` chat history
+- **Chat interface** with persistent `.jsonl` chat history and token-by-token streaming
 - **New chat creation** from the character detail or chat header
-- **Backend-proxied LLM calls** via MiniMax OpenAI-compatible API (no API key exposed to the browser)
+- **World Info / Lorebook editor** for managing character-associated knowledge
+- **Persona management** with name and avatar selection
+- **Connection settings & API keys** — choose provider/model and store keys server-side
+- **Backend-proxied LLM calls** via OpenAI-compatible API (no API key exposed to the browser)
 
 ### Screenshots
 
@@ -31,6 +35,12 @@ This branch adds a modern React + TypeScript + Vite + Tailwind frontend while ke
 #### Settings
 ![Settings](docs/images/settings.png)
 
+#### Create Character
+![Create Character](docs/images/character-create.png)
+
+#### Edit Character
+![Edit Character](docs/images/character-edit-updated.png)
+
 ### Development
 
 ```bash
@@ -40,13 +50,14 @@ npm run dev
 
 The dev server starts both the legacy backend (`http://127.0.0.1:8000`) and the Vite frontend (`http://localhost:5173`).
 
-### E2E Screenshot Test
+### E2E Screenshot Tests
 
 ```bash
 python e2e_screenshot.py
+python e2e_character_editor.py
 ```
 
-This launches a headless browser, runs a smoke test through the main user flows, and refreshes the screenshots under `docs/images/`.
+These launch a headless browser, run smoke tests through the main user flows, and refresh the screenshots under `docs/images/`.
 
 ## Resources
 

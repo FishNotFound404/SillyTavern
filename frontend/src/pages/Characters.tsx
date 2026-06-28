@@ -100,9 +100,17 @@ function Characters() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Characters</h1>
-        <span className="text-gray-400">
-          {hasFilters ? `${filteredCharacters.length} of ${characters.length}` : `${characters.length} total`}
-        </span>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/character/new')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm transition-colors"
+          >
+            + Create Character
+          </button>
+          <span className="text-gray-400">
+            {hasFilters ? `${filteredCharacters.length} of ${characters.length}` : `${characters.length} total`}
+          </span>
+        </div>
       </div>
 
       {/* Search */}
@@ -168,7 +176,7 @@ function Characters() {
           description={
             hasFilters
               ? 'Try adjusting your search or tags.'
-              : 'Add a character card to the characters folder, or use the legacy UI to create one.'
+              : 'Create your first character with the button above, or import a character card into the characters folder.'
           }
           icon={
             <svg

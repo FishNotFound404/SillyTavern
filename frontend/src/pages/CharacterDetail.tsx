@@ -117,6 +117,12 @@ function CharacterDetail() {
             >
               Start Chat
             </button>
+            <button
+              onClick={() => navigate(`/character/${encodeURIComponent(character.avatar)}/edit`)}
+              className="mt-3 w-full px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 font-semibold transition-colors"
+            >
+              Edit Character
+            </button>
           </div>
 
           <div className="flex-1 p-6 md:p-8 space-y-6">
