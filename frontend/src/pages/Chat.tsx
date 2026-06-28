@@ -6,12 +6,18 @@ import { ChatSkeleton, EmptyState, ErrorState } from '../components/ui'
 import type { Character } from '../types'
 import {
   applyMessageEdit,
-  buildApiMessages,
   deleteMessage,
   isChatMessage,
   prepareRegenerateContext,
 } from '../utils/chatMessageActions'
 import { gatherMatchingLore } from '../utils/lorebook'
+import type { ConnectionSettings } from '../types/connection'
+import {
+  buildGenerationRequest,
+  parseGenerationResponse,
+  readConnectionSettings,
+  DEFAULT_CONNECTION,
+} from '../utils/connection'
 
 interface ChatMessage {
   name: string
@@ -219,6 +225,7 @@ function Chat() {
   const [error, setError] = useState<string | null>(null)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
+  const [connection, setConnection] = useState<ConnectionSettings>(DEFAULT_CONNECTION)
   const messagesParentRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -322,6 +329,17 @@ function Chat() {
       el.style.height = `${Math.min(el.scrollHeight, 200)}px`
     }
   }, [input])
+
+  useEffect(() => {
+    apiPost<{ settings: string }>('/api/settings/get', {})
+      .then((data) => {
+        const parsed = data?.settings
+          ? (JSON.parse(data.settings) as Record<string, unknown>)
+          : {}
+        setConnection(readConnectionSettings(parsed))
+      })
+      .catch(() => setConnection(DEFAULT_CONNECTION))
+  }, [])
 
   const buildSystemPrompt = (loreContents?: string[]) => {
     if (!character) return ''
@@ -511,26 +529,16 @@ function Chat() {
       const historyMessages = currentChatData.filter(isChatMessage)
       const contextText = [...historyMessages.map((m) => m.mes), userText].join('\n')
       const loreContents = gatherMatchingLore(character.data?.character_book, contextText)
-      const apiMessages = [
-        { role: 'system', content: buildSystemPrompt(loreContents) },
-        ...historyMessages.map((m) => ({
-          role: m.is_user ? 'user' : 'assistant',
-          content: m.mes,
-        })),
-        { role: 'user', content: userText },
-      ]
 
-      const model = localStorage.getItem('sillytavern:settings:model') || 'MiniMax-M3'
-      const data = await apiPost<{ content?: string; error?: string }>('/api/minimax/chat/generate', {
-        messages: apiMessages,
-        model,
-      }, abortControllerRef.current.signal)
-
-      if (data.error) {
-        throw new Error(data.error)
-      }
-
-      const replyText = data.content || '[No response]'
+      const { endpoint, body } = buildGenerationRequest(connection, {
+        systemPrompt: buildSystemPrompt(loreContents),
+        historyMessages,
+        userMessage: userText,
+        userName: 'User',
+        charName: character.name,
+      })
+      const data = await apiPost<Record<string, unknown>>(endpoint, body, abortControllerRef.current.signal)
+      const replyText = parseGenerationResponse(connection.provider, data)
 
       const reply: ChatMessage = {
         name: character.name,
@@ -626,19 +634,15 @@ function Chat() {
     try {
       const contextText = historyMessages.map((m) => m.mes).join('\n')
       const loreContents = gatherMatchingLore(character.data?.character_book, contextText)
-      const apiMessages = buildApiMessages(buildSystemPrompt(loreContents), historyMessages)
 
-      const model = localStorage.getItem('sillytavern:settings:model') || 'MiniMax-M3'
-      const data = await apiPost<{ content?: string; error?: string }>('/api/minimax/chat/generate', {
-        messages: apiMessages,
-        model,
-      }, abortControllerRef.current.signal)
-
-      if (data.error) {
-        throw new Error(data.error)
-      }
-
-      const replyText = data.content || '[No response]'
+      const { endpoint, body } = buildGenerationRequest(connection, {
+        systemPrompt: buildSystemPrompt(loreContents),
+        historyMessages,
+        userName: 'User',
+        charName: character.name,
+      })
+      const data = await apiPost<Record<string, unknown>>(endpoint, body, abortControllerRef.current.signal)
+      const replyText = parseGenerationResponse(connection.provider, data)
       const reply: ChatMessage = {
         name: character.name,
         is_user: false,

@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from '../api/client'
 import { LoadingState, ErrorState } from '../components/ui'
-
-const MODEL_KEY = 'sillytavern:settings:model'
+import type { ChatProvider, ConnectionSettings } from '../types/connection'
+import {
+  PROVIDER_CONFIG,
+  DEFAULT_CONNECTION,
+  getDefaultModel,
+  getProviderConfig,
+  readConnectionSettings,
+  writeConnectionSettings,
+} from '../utils/connection'
 
 interface BackendStatus {
   online: boolean
   version?: string
 }
 
-interface MiniMaxStatus {
-  configured: boolean
-  default_model: string
-  available_models: string[]
+interface SettingsResponse {
+  settings: string
 }
 
 interface SecretItem {
@@ -44,28 +49,35 @@ const COMMON_API_KEYS: ApiKeyConfig[] = [
 
 function Settings() {
   const [backend, setBackend] = useState<BackendStatus>({ online: false })
-  const [minimax, setMiniMax] = useState<MiniMaxStatus | null>(null)
   const [secrets, setSecrets] = useState<SecretState>({})
   const [secretInputs, setSecretInputs] = useState<Record<string, string>>({})
   const [savingKeys, setSavingKeys] = useState<Record<string, boolean>>({})
-  const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem(MODEL_KEY) || 'MiniMax-M3'
-  })
+  const [connection, setConnection] = useState<ConnectionSettings>(DEFAULT_CONNECTION)
+  const [savingConnection, setSavingConnection] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
+  const loadSecrets = async () => {
+    const data = await apiPost<SecretState>('/api/secrets/read', {})
+    setSecrets(data || {})
+  }
+
+  const loadSettings = async () => {
+    const data = await apiPost<SettingsResponse>('/api/settings/get', {})
+    const parsed = data?.settings ? (JSON.parse(data.settings) as Record<string, unknown>) : {}
+    setConnection(readConnectionSettings(parsed))
+  }
+
   useEffect(() => {
     async function load() {
       try {
-        const [backendData, minimaxData, secretsData] = await Promise.all([
+        const [backendData] = await Promise.all([
           apiGet<BackendStatus>('/api/settings/status').catch(() => ({ online: false })),
-          apiGet<MiniMaxStatus>('/api/minimax/status').catch(() => null),
-          apiPost<SecretState>('/api/secrets/read', {}).catch(() => ({})),
+          loadSettings(),
+          loadSecrets(),
         ])
         setBackend(backendData)
-        setMiniMax(minimaxData)
-        setSecrets(secretsData || {})
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load settings')
       } finally {
@@ -75,9 +87,29 @@ function Settings() {
     load()
   }, [])
 
-  const handleModelChange = (model: string) => {
-    setSelectedModel(model)
-    localStorage.setItem(MODEL_KEY, model)
+  const handleProviderChange = (provider: ChatProvider) => {
+    setConnection((prev) => ({
+      ...prev,
+      provider,
+      model: getDefaultModel(provider),
+    }))
+  }
+
+  const handleSaveConnection = async () => {
+    setSavingConnection(true)
+    setSaveMessage(null)
+    setError(null)
+    try {
+      const data = await apiPost<SettingsResponse>('/api/settings/get', {})
+      const parsed = data?.settings ? (JSON.parse(data.settings) as Record<string, unknown>) : {}
+      const updated = writeConnectionSettings(parsed, connection)
+      await apiPost('/api/settings/save', updated)
+      setSaveMessage(`Connection saved: ${getProviderConfig(connection.provider).label} / ${connection.model}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save connection')
+    } finally {
+      setSavingConnection(false)
+    }
   }
 
   const isConfigured = (key: string) => {
@@ -140,6 +172,8 @@ function Settings() {
     )
   }
 
+  const activeSecretKey = getProviderConfig(connection.provider).secretKey
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
@@ -163,21 +197,85 @@ function Settings() {
           )}
         </section>
 
-        {/* API Keys */}
+        {/* Connection */}
         <section className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <h2 className="text-lg font-semibold text-white mb-4">API Keys</h2>
+          <h2 className="text-lg font-semibold text-white mb-4">Connection</h2>
           {saveMessage && (
             <div className="mb-4 px-4 py-2 bg-green-900/50 border border-green-700 rounded-lg text-green-200 text-sm">
               {saveMessage}
             </div>
           )}
           <div className="space-y-4">
+            <div>
+              <label htmlFor="provider" className="block text-sm font-medium text-gray-300 mb-2">
+                AI Provider
+              </label>
+              <select
+                id="provider"
+                value={connection.provider}
+                onChange={(e) => handleProviderChange(e.target.value as ChatProvider)}
+                className="w-full bg-gray-900 text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none"
+              >
+                {PROVIDER_CONFIG.map((provider) => (
+                  <option key={provider.key} value={provider.key}>
+                    {provider.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-2">
+                Select the provider matching the API key you configure below.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="model" className="block text-sm font-medium text-gray-300 mb-2">
+                Model
+              </label>
+              <input
+                id="model"
+                type="text"
+                value={connection.model}
+                onChange={(e) =>
+                  setConnection((prev) => ({ ...prev, model: e.target.value }))
+                }
+                placeholder="e.g. gpt-4o-mini"
+                className="w-full bg-gray-900 text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <button
+              onClick={handleSaveConnection}
+              disabled={savingConnection || !connection.model.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium text-sm"
+            >
+              {savingConnection ? 'Saving...' : 'Save Connection'}
+            </button>
+          </div>
+        </section>
+
+        {/* API Keys */}
+        <section className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+          <h2 className="text-lg font-semibold text-white mb-4">API Keys</h2>
+          <div className="space-y-4">
             {COMMON_API_KEYS.map(({ key, label }) => {
               const configured = isConfigured(key)
+              const active = key === activeSecretKey
               return (
-                <div key={key} className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                <div
+                  key={key}
+                  className={`bg-gray-900 rounded-lg p-4 border ${
+                    active ? 'border-blue-500' : 'border-gray-700'
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-white font-medium">{label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-medium">{label}</span>
+                      {active && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300">
+                          Active provider
+                        </span>
+                      )}
+                    </div>
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full ${
                         configured
@@ -222,50 +320,6 @@ function Settings() {
           <p className="text-xs text-gray-500 mt-4">
             Keys are stored server-side in your data directory. Only masked values are shown.
           </p>
-        </section>
-
-        {/* MiniMax Configuration */}
-        <section className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <h2 className="text-lg font-semibold text-white mb-4">MiniMax Configuration</h2>
-          {minimax ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <span
-                  className={`inline-block w-3 h-3 rounded-full ${
-                    minimax.configured ? 'bg-green-500' : 'bg-yellow-500'
-                  }`}
-                />
-                <span className="text-gray-200">
-                  {minimax.configured
-                    ? 'API key configured server-side'
-                    : 'API key not configured. Add api_key_minimax to your backend secrets.'}
-                </span>
-              </div>
-
-              <div>
-                <label htmlFor="model" className="block text-sm font-medium text-gray-300 mb-2">
-                  Default Chat Model
-                </label>
-                <select
-                  id="model"
-                  value={selectedModel}
-                  onChange={(e) => handleModelChange(e.target.value)}
-                  className="w-full bg-gray-900 text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none"
-                >
-                  {minimax.available_models.map((model) => (
-                    <option key={model} value={model}>
-                      {model}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-2">
-                  Saved locally in your browser.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <p className="text-gray-400">Unable to load MiniMax status.</p>
-          )}
         </section>
 
         {/* About */}

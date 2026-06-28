@@ -11,11 +11,14 @@ OUT_DIR = 'docs/images'
 
 def mock_generate(route: Route) -> None:
     """Return a fast mock reply so the smoke test doesn't need a real API key."""
-    route.fulfill(
-        status=200,
-        content_type='application/json',
-        body=json.dumps({'content': 'Hello! This is a mock reply from Seraphina.'}),
-    )
+    url = route.request.url
+    if 'api/backends/chat-completions/generate' in url:
+        body = json.dumps({
+            'choices': [{'message': {'content': 'Hello! This is a mock reply from Seraphina.'}}],
+        })
+    else:
+        body = json.dumps({'content': 'Hello! This is a mock reply from Seraphina.'})
+    route.fulfill(status=200, content_type='application/json', body=body)
 
 
 def screenshot(page: Page, name: str) -> None:
@@ -32,6 +35,7 @@ def run() -> int:
         errors = []
         page.on('pageerror', lambda err: errors.append(str(err)))
         page.route('**/api/minimax/chat/generate', mock_generate)
+        page.route('**/api/backends/chat-completions/generate', mock_generate)
         def log_console(msg):
             if msg.type == 'error':
                 print(f'[console {msg.type}] {msg.text}')
@@ -119,7 +123,7 @@ def run() -> int:
         print('=> Opening settings')
         page.get_by_role('link', name='Settings').click()
         page.wait_for_timeout(2000)
-        expect(page.locator('text=MiniMax Configuration').first).to_be_visible()
+        expect(page.locator('text=Connection').first).to_be_visible()
         screenshot(page, 'settings')
 
         browser.close()
