@@ -238,10 +238,10 @@ function Chat() {
     }
   }, [messages.length])
 
-  // Redirect to character list if no character is selected
+  // Redirect to chat list if no character is selected
   useEffect(() => {
     if (!avatarUrl) {
-      navigate('/')
+      navigate('/chat')
       return
     }
 
