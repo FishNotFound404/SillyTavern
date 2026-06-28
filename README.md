@@ -11,8 +11,8 @@ This branch adds a modern React + TypeScript + Vite + Tailwind frontend while ke
 - **Character gallery** with AI-generated portraits
 - **Character creation, editing, import & export** — build, edit, import and export PNG/JSON character cards from the React UI
 - **Character detail** view with description, personality, scenario, and first message
-- **Chat interface** with persistent `.jsonl` chat history and token-by-token streaming
-- **Group chat** — create groups of characters, chat with multiple personas in a single room, and trigger member replies
+- **Chat interface** with persistent `.jsonl` chat history, token-by-token streaming, and in-chat message search with highlight and jump
+- **Group chat** — create groups of characters, chat with multiple personas in a single room, trigger member replies, and search messages
 - **New chat creation** from the character detail or chat header
 - **World Info / Lorebook editor** for managing character-associated knowledge
 - **Persona management** with name and avatar selection
@@ -30,6 +30,9 @@ This branch adds a modern React + TypeScript + Vite + Tailwind frontend while ke
 
 #### Chat
 ![Chat](docs/images/chat.png)
+
+#### Chat Search
+![Chat Search](docs/images/chat-search.png)
 
 #### New Chat
 ![New Chat](docs/images/new-chat.png)
@@ -76,6 +79,7 @@ python e2e_character_import.py
 python e2e_character_export.py
 python e2e_group_chat.py
 python e2e_settings_models.py
+python e2e_chat_search.py
 ```
 
 These launch a headless browser, run smoke tests through the main user flows, and refresh the screenshots under `docs/images/`.

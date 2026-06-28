@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { apiPost } from '../api/client'
 import { ChatSkeleton, EmptyState, ErrorState } from '../components/ui'
-import type { Character } from '../types'
+import { ChatMessageBubble } from '../components/ChatMessageBubble'
+import type { Character, ChatMessage, ChatMetadata } from '../types'
 import {
   applyMessageEdit,
   deleteMessage,
@@ -25,30 +26,9 @@ import {
   getPersonaThumbnailUrl,
 } from '../utils/persona'
 
-interface ChatMessage {
-  name: string
-  is_user: boolean
-  mes: string
-  send_date: string
-}
-
 interface ChatFile {
   file_name: string
   file_id: string
-}
-
-interface ChatMetadata {
-  chat_metadata: {
-    integrity: string
-    note_prompt: string
-    note_interval: number
-    note_position: number
-    note_depth: number
-    note_role: number
-    tainted?: boolean
-  }
-  user_name: string
-  character_name: string
 }
 
 type ChatLine = ChatMetadata | ChatMessage
@@ -97,6 +77,7 @@ interface ChatMessageItemProps {
   generating: boolean
   userAvatar?: string
   characterAvatar?: string
+  query?: string
   onEditStart: (index: number, text: string) => void
   onEditSave: (index: number) => void
   onEditCancel: () => void
@@ -113,6 +94,7 @@ function ChatMessageItem({
   generating,
   userAvatar,
   characterAvatar,
+  query,
   onEditStart,
   onEditSave,
   onEditCancel,
@@ -120,23 +102,79 @@ function ChatMessageItem({
   onDelete,
   onRegenerate,
 }: ChatMessageItemProps) {
+  const avatarUrl = message.is_user ? userAvatar : characterAvatar
+
+  if (editingIndex === index) {
+    return (
+      <div className={`flex ${message.is_user ? 'justify-end' : 'justify-start'} group gap-3`}>
+        {!message.is_user && characterAvatar && (
+          <img
+            src={characterAvatar}
+            alt={message.name}
+            className="w-8 h-8 rounded-full object-cover self-end mb-1"
+          />
+        )}
+        <div
+          className={`relative max-w-[80%] rounded-2xl px-5 py-3 ${
+            message.is_user
+              ? 'bg-blue-600 text-white rounded-br-md'
+              : 'bg-gray-800 text-gray-100 rounded-bl-md'
+          }`}
+        >
+          <div className="text-xs opacity-75 mb-1">{message.name}</div>
+          <div className="space-y-2">
+            <textarea
+              value={editText}
+              onChange={(e) => onEditTextChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  onEditSave(index)
+                }
+                if (e.key === 'Escape') {
+                  onEditCancel()
+                }
+              }}
+              rows={3}
+              className="w-full bg-black/20 text-white rounded-lg px-3 py-2 border border-white/30 focus:border-white focus:outline-none resize-none"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => onEditSave(index)}
+                disabled={!editText.trim()}
+                className="px-3 py-1 text-xs bg-white/20 hover:bg-white/30 rounded disabled:opacity-50"
+              >
+                Save
+              </button>
+              <button
+                onClick={onEditCancel}
+                className="px-3 py-1 text-xs hover:bg-white/10 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+        {message.is_user && userAvatar && (
+          <img
+            src={userAvatar}
+            alt={message.name}
+            className="w-8 h-8 rounded-full object-cover self-end mb-1"
+          />
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className={`flex ${message.is_user ? 'justify-end' : 'justify-start'} group gap-3`}>
-      {!message.is_user && characterAvatar && (
-        <img
-          src={characterAvatar}
-          alt={message.name}
-          className="w-8 h-8 rounded-full object-cover self-end mb-1"
-        />
-      )}
-      <div
-        className={`relative max-w-[80%] rounded-2xl px-5 py-3 ${
-          message.is_user
-            ? 'bg-blue-600 text-white rounded-br-md'
-            : 'bg-gray-800 text-gray-100 rounded-bl-md'
-        }`}
+    <div className="group">
+      <ChatMessageBubble
+        message={message}
+        avatarUrl={avatarUrl}
+        isUser={message.is_user}
+        query={query}
       >
-        {/* Message actions */}
         <div
           className={`absolute top-0 ${
             message.is_user ? 'left-0 -translate-x-full pl-2' : 'right-0 translate-x-full pr-2'
@@ -173,62 +211,11 @@ function ChatMessageItem({
             title="Delete"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.67 0 00-7.5 0" />
             </svg>
           </button>
         </div>
-
-        <div className="text-xs opacity-75 mb-1">
-          {message.name}
-        </div>
-
-        {editingIndex === index ? (
-          <div className="space-y-2">
-            <textarea
-              value={editText}
-              onChange={(e) => onEditTextChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  onEditSave(index)
-                }
-                if (e.key === 'Escape') {
-                  onEditCancel()
-                }
-              }}
-              rows={3}
-              className="w-full bg-black/20 text-white rounded-lg px-3 py-2 border border-white/30 focus:border-white focus:outline-none resize-none"
-              autoFocus
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={() => onEditSave(index)}
-                disabled={!editText.trim()}
-                className="px-3 py-1 text-xs bg-white/20 hover:bg-white/30 rounded disabled:opacity-50"
-              >
-                Save
-              </button>
-              <button
-                onClick={onEditCancel}
-                className="px-3 py-1 text-xs hover:bg-white/10 rounded"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="whitespace-pre-wrap leading-relaxed">
-            {stripThinkTags(message.mes) || '[No visible content]'}
-          </div>
-        )}
-      </div>
-      {message.is_user && userAvatar && (
-        <img
-          src={userAvatar}
-          alt={message.name}
-          className="w-8 h-8 rounded-full object-cover self-end mb-1"
-        />
-      )}
+      </ChatMessageBubble>
     </div>
   )
 }
@@ -255,7 +242,30 @@ function Chat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+
   const messages = chatData.filter(isChatMessage)
+
+  const matchIndices = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return []
+    return messages
+      .map((message, index) => ({ message, index }))
+      .filter(({ message }) => stripThinkTags(message.mes).toLowerCase().includes(query))
+      .map(({ index }) => index)
+  }, [messages, searchQuery])
+
+  useEffect(() => {
+    setCurrentMatchIndex(0)
+  }, [matchIndices.length])
+
+  useEffect(() => {
+    if (matchIndices.length === 0) return
+    const index = matchIndices[currentMatchIndex]
+    if (index === undefined) return
+    virtualizer.scrollToIndex(index, { align: 'center' })
+  }, [matchIndices, currentMatchIndex])
   const activePersona = getDefaultPersona(personaState)
   const activePersonaName = activePersona?.name || 'User'
   const activePersonaAvatar = activePersona ? getPersonaThumbnailUrl(activePersona.avatar) : undefined
@@ -750,7 +760,55 @@ function Chat() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-2 py-1.5 border border-gray-700">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search messages..."
+              className="bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none w-32"
+            />
+            {matchIndices.length > 0 && (
+              <span className="text-xs text-gray-400">
+                {currentMatchIndex + 1}/{matchIndices.length}
+              </span>
+            )}
+            <button
+              onClick={() => setCurrentMatchIndex((prev) => (prev - 1 + matchIndices.length) % matchIndices.length)}
+              disabled={matchIndices.length === 0}
+              className="p-1 text-gray-400 hover:text-white disabled:opacity-30"
+              title="Previous match"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setCurrentMatchIndex((prev) => (prev + 1) % matchIndices.length)}
+              disabled={matchIndices.length === 0}
+              className="p-1 text-gray-400 hover:text-white disabled:opacity-30"
+              title="Next match"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="p-1 text-gray-400 hover:text-white"
+                title="Clear search"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
           <button
             onClick={() => navigate('/personas')}
             className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-800 text-gray-200 rounded-lg hover:bg-gray-700 border border-gray-700"
@@ -895,6 +953,7 @@ function Chat() {
                     generating={generating}
                     userAvatar={activePersonaAvatar}
                     characterAvatar={characterAvatar}
+                    query={searchQuery}
                     onEditStart={handleEditStart}
                     onEditSave={handleEditSave}
                     onEditCancel={handleEditCancel}

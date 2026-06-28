@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { apiPost } from '../api/client'
 import { LoadingState, ErrorState, EmptyState } from '../components/ui'
-import type { Character, Group, PersonaState } from '../types'
+import { ChatMessageBubble } from '../components/ChatMessageBubble'
+import type { Character, ChatMessage, ChatMetadata, Group, PersonaState } from '../types'
 import {
   buildGenerationRequest,
   readConnectionSettings,
@@ -22,27 +23,6 @@ import {
   getPersonaAvatarUrl,
   readPersonaState,
 } from '../utils/persona'
-
-interface ChatMessage {
-  name: string
-  is_user: boolean
-  mes: string
-  send_date: string
-}
-
-interface ChatMetadata {
-  chat_metadata: {
-    integrity: string
-    note_prompt: string
-    note_interval: number
-    note_position: number
-    note_depth: number
-    note_role: number
-    tainted?: boolean
-  }
-  user_name: string
-  character_name: string
-}
 
 type ChatLine = ChatMetadata | ChatMessage
 
@@ -111,6 +91,8 @@ export default function GroupChat() {
   const [error, setError] = useState<string | null>(null)
   const [personaState, setPersonaState] = useState<PersonaState>({ personas: [], defaultId: null })
   const [connection, setConnection] = useState(DEFAULT_CONNECTION)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -168,6 +150,27 @@ export default function GroupChat() {
   }, [chatData, generating])
 
   const chatMessages = chatData.filter(isChatMessage)
+
+  const matchIndices = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return []
+    return chatMessages
+      .map((message, index) => ({ message, index }))
+      .filter(({ message }) => stripThinkTags(message.mes).toLowerCase().includes(query))
+      .map(({ index }) => index)
+  }, [chatMessages, searchQuery])
+
+  useEffect(() => {
+    setCurrentMatchIndex(0)
+  }, [matchIndices.length])
+
+  useEffect(() => {
+    if (matchIndices.length === 0) return
+    const index = matchIndices[currentMatchIndex]
+    if (index === undefined) return
+    const element = document.getElementById(`msg-${index}`)
+    element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [matchIndices, currentMatchIndex])
 
   const saveMessages = async (messages: ChatLine[]) => {
     if (!group) return
@@ -340,19 +343,68 @@ export default function GroupChat() {
 
       {/* Chat area */}
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+        <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
               G
             </div>
-            <div>
-              <h1 className="text-white font-semibold">{group.name}</h1>
+            <div className="min-w-0">
+              <h1 className="text-white font-semibold truncate">{group.name}</h1>
               {currentSpeaker && (
-                <p className="text-xs text-blue-300">
+                <p className="text-xs text-blue-300 truncate">
                   {currentSpeaker.name} is speaking...
                 </p>
               )}
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-2 py-1.5 border border-gray-700 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search..."
+              className="bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none w-24"
+            />
+            {matchIndices.length > 0 && (
+              <span className="text-xs text-gray-400">
+                {currentMatchIndex + 1}/{matchIndices.length}
+              </span>
+            )}
+            <button
+              onClick={() => setCurrentMatchIndex((prev) => (prev - 1 + matchIndices.length) % matchIndices.length)}
+              disabled={matchIndices.length === 0}
+              className="p-1 text-gray-400 hover:text-white disabled:opacity-30"
+              title="Previous match"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setCurrentMatchIndex((prev) => (prev + 1) % matchIndices.length)}
+              disabled={matchIndices.length === 0}
+              className="p-1 text-gray-400 hover:text-white disabled:opacity-30"
+              title="Next match"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="p-1 text-gray-400 hover:text-white"
+                title="Clear search"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         </header>
 
@@ -376,25 +428,14 @@ export default function GroupChat() {
             return (
               <div
                 key={index}
-                className={`flex gap-3 ${message.is_user ? 'flex-row-reverse' : ''}`}
+                id={`msg-${index}`}
               >
-                {avatarUrl && (
-                  <img
-                    src={avatarUrl}
-                    alt={message.name}
-                    className="w-8 h-8 rounded-full object-cover bg-gray-800 self-end"
-                  />
-                )}
-                <div
-                  className={`max-w-[80%] rounded-2xl px-5 py-3 ${
-                    message.is_user
-                      ? 'bg-blue-600 text-white rounded-br-md'
-                      : 'bg-gray-800 text-gray-100 rounded-bl-md'
-                  }`}
-                >
-                  <div className="text-xs opacity-75 mb-1">{message.name}</div>
-                  <p className="whitespace-pre-wrap leading-relaxed">{message.mes}</p>
-                </div>
+                <ChatMessageBubble
+                  message={message}
+                  avatarUrl={avatarUrl}
+                  isUser={message.is_user}
+                  query={searchQuery}
+                />
               </div>
             )
           })}
