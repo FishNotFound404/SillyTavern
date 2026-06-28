@@ -11,6 +11,7 @@ import {
   isChatMessage,
   prepareRegenerateContext,
 } from '../utils/chatMessageActions'
+import { gatherMatchingLore } from '../utils/lorebook'
 
 interface ChatMessage {
   name: string
@@ -322,13 +323,17 @@ function Chat() {
     }
   }, [input])
 
-  const buildSystemPrompt = () => {
+  const buildSystemPrompt = (loreContents?: string[]) => {
     if (!character) return ''
     const parts: string[] = []
     if (character.description) parts.push(`Description: ${character.description}`)
     if (character.personality) parts.push(`Personality: ${character.personality}`)
     if (character.scenario) parts.push(`Scenario: ${character.scenario}`)
     parts.push(`You are ${character.name}. Stay in character and respond as ${character.name}.`)
+    if (loreContents && loreContents.length > 0) {
+      parts.push('[World Info]')
+      parts.push(...loreContents)
+    }
     return parts.join('\n\n')
   }
 
@@ -504,8 +509,10 @@ function Chat() {
 
     try {
       const historyMessages = currentChatData.filter(isChatMessage)
+      const contextText = [...historyMessages.map((m) => m.mes), userText].join('\n')
+      const loreContents = gatherMatchingLore(character.data?.character_book, contextText)
       const apiMessages = [
-        { role: 'system', content: buildSystemPrompt() },
+        { role: 'system', content: buildSystemPrompt(loreContents) },
         ...historyMessages.map((m) => ({
           role: m.is_user ? 'user' : 'assistant',
           content: m.mes,
@@ -617,7 +624,9 @@ function Chat() {
     abortControllerRef.current = new AbortController()
 
     try {
-      const apiMessages = buildApiMessages(buildSystemPrompt(), historyMessages)
+      const contextText = historyMessages.map((m) => m.mes).join('\n')
+      const loreContents = gatherMatchingLore(character.data?.character_book, contextText)
+      const apiMessages = buildApiMessages(buildSystemPrompt(loreContents), historyMessages)
 
       const model = localStorage.getItem('sillytavern:settings:model') || 'MiniMax-M3'
       const data = await apiPost<{ content?: string; error?: string }>('/api/minimax/chat/generate', {

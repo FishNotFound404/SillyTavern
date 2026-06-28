@@ -15,6 +15,21 @@ export interface Character {
     extensions?: {
       world?: string
     }
+    character_book?: {
+      name?: string
+      entries: Array<{
+        id: number
+        keys: string[]
+        secondary_keys?: string[]
+        content: string
+        constant?: boolean
+        selective?: boolean
+        enabled?: boolean
+        insertion_order?: number
+        position?: 'before_char' | 'after_char'
+        comment?: string
+      }>
+    }
   }
 }
 
