@@ -3,6 +3,13 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { apiPost } from '../api/client'
 import { ChatSkeleton, EmptyState, ErrorState } from '../components/ui'
 import type { Character } from '../types'
+import {
+  applyMessageEdit,
+  buildApiMessages,
+  deleteMessage,
+  isChatMessage,
+  prepareRegenerateContext,
+} from '../utils/chatMessageActions'
 
 interface ChatMessage {
   name: string
@@ -31,10 +38,6 @@ interface ChatMetadata {
 }
 
 type ChatLine = ChatMetadata | ChatMessage
-
-function isChatMessage(line: ChatLine): line is ChatMessage {
-  return 'mes' in line
-}
 
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -363,9 +366,6 @@ function Chat() {
     }
   }
 
-  // Message index in chatData is messageIndex + 1 because line 0 is metadata.
-  const toChatDataIndex = (messageIndex: number) => messageIndex + 1
-
   const handleEditStart = (messageIndex: number, text: string) => {
     setEditingIndex(messageIndex)
     setEditText(text)
@@ -377,13 +377,8 @@ function Chat() {
   }
 
   const handleEditSave = async (messageIndex: number) => {
-    if (!editText.trim()) return
-    const chatDataIndex = toChatDataIndex(messageIndex)
-    const updated = [...chatData]
-    const target = updated[chatDataIndex]
-    if (target && isChatMessage(target)) {
-      target.mes = editText.trim()
-      target.send_date = new Date().toISOString()
+    const updated = applyMessageEdit(chatData, messageIndex, editText)
+    if (updated) {
       setChatData(updated)
       await saveChatData(updated)
     }
@@ -392,33 +387,23 @@ function Chat() {
   }
 
   const handleDelete = async (messageIndex: number) => {
-    const chatDataIndex = toChatDataIndex(messageIndex)
-    const updated = chatData.filter((_, i) => i !== chatDataIndex)
+    const updated = deleteMessage(chatData, messageIndex)
     setChatData(updated)
     await saveChatData(updated)
   }
 
   const handleRegenerate = async (messageIndex: number) => {
     if (!character || generating) return
-    const chatDataIndex = toChatDataIndex(messageIndex)
-    const target = chatData[chatDataIndex]
-    if (!target || !isChatMessage(target) || target.is_user) return
+    const context = prepareRegenerateContext(chatData, messageIndex)
+    if (!context) return
 
-    // Truncate to keep everything up to and including the user message that prompted this reply.
-    const truncated = chatData.slice(0, chatDataIndex)
+    const { truncated, historyMessages } = context
     setChatData(truncated)
     setGenerating(true)
     abortControllerRef.current = new AbortController()
 
     try {
-      const historyMessages = truncated.filter(isChatMessage)
-      const apiMessages = [
-        { role: 'system', content: buildSystemPrompt() },
-        ...historyMessages.map((m) => ({
-          role: m.is_user ? 'user' : 'assistant',
-          content: m.mes,
-        })),
-      ]
+      const apiMessages = buildApiMessages(buildSystemPrompt(), historyMessages)
 
       const model = localStorage.getItem('sillytavern:settings:model') || 'MiniMax-M3'
       const data = await apiPost<{ content?: string; error?: string }>('/api/minimax/chat/generate', {
