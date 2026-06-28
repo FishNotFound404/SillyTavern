@@ -1,4 +1,5 @@
-import type { ChatProvider, ConnectionSettings, MiniMaxEndpoint } from '../types/connection'
+import { apiGet, apiPost } from '../api/client'
+import type { ChatProvider, ConnectionSettings, MiniMaxEndpoint, ModelInfo } from '../types/connection'
 
 export interface ApiMessage {
   role: 'system' | 'user' | 'assistant'
@@ -27,6 +28,40 @@ export function getProviderConfig(provider: ChatProvider): ProviderConfig {
 
 export function getDefaultModel(provider: ChatProvider): string {
   return getProviderConfig(provider).defaultModel
+}
+
+export const CLAUDE_MODELS: ModelInfo[] = [
+  { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
+  { id: 'claude-3-opus-latest', name: 'Claude 3 Opus' },
+  { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku' },
+  { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
+  { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
+]
+
+export async function fetchModels(provider: ChatProvider): Promise<ModelInfo[]> {
+  if (provider === 'claude') {
+    return CLAUDE_MODELS
+  }
+
+  if (provider === 'minimax') {
+    const data = await apiGet<{ configured?: boolean; default_model?: string; available_models?: string[] }>(
+      '/api/minimax/status',
+    )
+    return (data.available_models || []).map((id) => ({ id }))
+  }
+
+  const data = await apiPost<{ error?: boolean; data?: Array<{ id?: string; name?: string }> }>(
+    '/api/backends/chat-completions/status',
+    { chat_completion_source: provider },
+  )
+
+  if (data.error) {
+    throw new Error('Provider returned an error while fetching models')
+  }
+
+  return (data.data || [])
+    .filter((item): item is { id: string; name?: string } => typeof item.id === 'string')
+    .map((item) => ({ id: item.id, name: item.name }))
 }
 
 export const DEFAULT_CONNECTION: ConnectionSettings = {

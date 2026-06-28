@@ -17,6 +17,7 @@ This branch adds a modern React + TypeScript + Vite + Tailwind frontend while ke
 - **World Info / Lorebook editor** for managing character-associated knowledge
 - **Persona management** with name and avatar selection
 - **Connection settings & API keys** — choose provider/model and store keys server-side
+- **Model list auto-fetch** — settings page loads available models from OpenAI, Google, OpenRouter, DeepSeek and MiniMax after an API key is saved
 - **Backend-proxied LLM calls** via OpenAI-compatible API (no API key exposed to the browser)
 
 ### Screenshots
@@ -35,6 +36,9 @@ This branch adds a modern React + TypeScript + Vite + Tailwind frontend while ke
 
 #### Settings
 ![Settings](docs/images/settings.png)
+
+#### Model Selection
+![Model Selection](docs/images/settings-models.png)
 
 #### Create Character
 ![Create Character](docs/images/character-create.png)
@@ -71,6 +75,7 @@ python e2e_character_editor.py
 python e2e_character_import.py
 python e2e_character_export.py
 python e2e_group_chat.py
+python e2e_settings_models.py
 ```
 
 These launch a headless browser, run smoke tests through the main user flows, and refresh the screenshots under `docs/images/`.

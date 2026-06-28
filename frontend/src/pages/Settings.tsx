@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from '../api/client'
 import { LoadingState, ErrorState } from '../components/ui'
-import type { ChatProvider, ConnectionSettings, MiniMaxEndpoint } from '../types/connection'
+import type { ChatProvider, ConnectionSettings, MiniMaxEndpoint, ModelInfo } from '../types/connection'
 import {
   PROVIDER_CONFIG,
   DEFAULT_CONNECTION,
+  fetchModels,
   getDefaultModel,
   getProviderConfig,
   readConnectionSettings,
@@ -57,6 +58,10 @@ function Settings() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [models, setModels] = useState<ModelInfo[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
+  const [modelError, setModelError] = useState<string | null>(null)
+  const [customMode, setCustomMode] = useState(false)
 
   const loadSecrets = async () => {
     const data = await apiPost<SecretState>('/api/secrets/read', {})
@@ -86,6 +91,44 @@ function Settings() {
     }
     load()
   }, [])
+
+  const activeSecretKey = getProviderConfig(connection.provider).secretKey
+
+  useEffect(() => {
+    let cancelled = false
+    setModelError(null)
+
+    if (!isConfigured(activeSecretKey)) {
+      setModels([])
+      setCustomMode(false)
+      setLoadingModels(false)
+      return
+    }
+
+    setLoadingModels(true)
+    fetchModels(connection.provider)
+      .then((list) => {
+        if (cancelled) return
+        setModels(list)
+        if (list.length > 0 && !list.some((m) => m.id === connection.model)) {
+          setConnection((prev) => ({ ...prev, model: list[0].id }))
+        }
+        setCustomMode(false)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setModelError(err instanceof Error ? err.message : 'Failed to load models')
+        setModels([])
+        setCustomMode(true)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingModels(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [connection.provider, activeSecretKey, secrets])
 
   const handleProviderChange = (provider: ChatProvider) => {
     setConnection((prev) => ({
@@ -177,8 +220,6 @@ function Settings() {
     )
   }
 
-  const activeSecretKey = getProviderConfig(connection.provider).secretKey
-
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
@@ -255,17 +296,64 @@ function Settings() {
             <div>
               <label htmlFor="model" className="block text-sm font-medium text-gray-300 mb-2">
                 Model
+                {loadingModels && (
+                  <span className="ml-2 text-xs text-gray-400">Loading...</span>
+                )}
               </label>
-              <input
-                id="model"
-                type="text"
-                value={connection.model}
-                onChange={(e) =>
-                  setConnection((prev) => ({ ...prev, model: e.target.value }))
-                }
-                placeholder="e.g. gpt-4o-mini"
-                className="w-full bg-gray-900 text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none"
-              />
+              {customMode || models.length === 0 || modelError ? (
+                <div className="flex gap-2">
+                  <input
+                    id="model"
+                    type="text"
+                    value={connection.model}
+                    onChange={(e) =>
+                      setConnection((prev) => ({ ...prev, model: e.target.value }))
+                    }
+                    placeholder="e.g. gpt-4o-mini"
+                    className="flex-1 bg-gray-900 text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none"
+                  />
+                  {models.length > 0 && !modelError && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomMode(false)}
+                      className="px-3 py-2 bg-gray-700 text-white rounded-lg text-sm hover:bg-gray-600"
+                    >
+                      List
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <select
+                  id="model"
+                  value={connection.model}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setCustomMode(true)
+                      return
+                    }
+                    setConnection((prev) => ({ ...prev, model: e.target.value }))
+                  }}
+                  className="w-full bg-gray-900 text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none"
+                >
+                  {models.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name || model.id}
+                    </option>
+                  ))}
+                  {connection.model && !models.some((m) => m.id === connection.model) && (
+                    <option value={connection.model}>{connection.model}</option>
+                  )}
+                  <option value="__custom__">Custom...</option>
+                </select>
+              )}
+              {modelError && (
+                <p className="mt-2 text-xs text-red-400">{modelError}</p>
+              )}
+              {!isConfigured(activeSecretKey) && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Save the API key above to load available models.
+                </p>
+              )}
             </div>
 
             <button

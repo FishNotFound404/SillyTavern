@@ -16,3 +16,8 @@ export interface ConnectionSettings {
   stream: boolean
   minimaxEndpoint: MiniMaxEndpoint
 }
+
+export interface ModelInfo {
+  id: string
+  name?: string
+}
