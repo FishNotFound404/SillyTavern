@@ -9,7 +9,7 @@ This branch adds a modern React + TypeScript + Vite + Tailwind frontend while ke
 ### Features
 
 - **Character gallery** with AI-generated portraits
-- **Character creation & editing** — build new characters or edit existing cards from the React UI
+- **Character creation, editing, import & export** — build, edit, import and export PNG/JSON character cards from the React UI
 - **Character detail** view with description, personality, scenario, and first message
 - **Chat interface** with persistent `.jsonl` chat history and token-by-token streaming
 - **New chat creation** from the character detail or chat header
@@ -41,6 +41,15 @@ This branch adds a modern React + TypeScript + Vite + Tailwind frontend while ke
 #### Edit Character
 ![Edit Character](docs/images/character-edit-updated.png)
 
+#### Import Character
+![Import Character](docs/images/character-import.png)
+
+#### Export Character
+![Export Character](docs/images/character-detail-export.png)
+
+#### Chat List
+![Chat List](docs/images/chat-list.png)
+
 ### Development
 
 ```bash
@@ -55,6 +64,8 @@ The dev server starts both the legacy backend (`http://127.0.0.1:8000`) and the 
 ```bash
 python e2e_screenshot.py
 python e2e_character_editor.py
+python e2e_character_import.py
+python e2e_character_export.py
 ```
 
 These launch a headless browser, run smoke tests through the main user flows, and refresh the screenshots under `docs/images/`.

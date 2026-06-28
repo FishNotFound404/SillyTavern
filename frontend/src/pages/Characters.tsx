@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiPost } from '../api/client'
+import CharacterImportModal from '../components/CharacterImportModal'
 import { Skeleton, EmptyState, ErrorState, CharacterCardSkeleton } from '../components/ui'
 import type { Character } from '../types'
 
@@ -11,6 +12,7 @@ function Characters() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [importOpen, setImportOpen] = useState(false)
 
   const loadCharacters = () => {
     setLoading(true)
@@ -102,6 +104,12 @@ function Characters() {
         <h1 className="text-2xl font-bold text-white">Characters</h1>
         <div className="flex items-center gap-4">
           <button
+            onClick={() => setImportOpen(true)}
+            className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 font-medium text-sm transition-colors"
+          >
+            Import Character
+          </button>
+          <button
             onClick={() => navigate('/character/new')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm transition-colors"
           >
@@ -112,6 +120,15 @@ function Characters() {
           </span>
         </div>
       </div>
+
+      <CharacterImportModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={(avatar) => {
+          const avatarFile = avatar.endsWith('.png') ? avatar : `${avatar}.png`
+          navigate(`/character/${encodeURIComponent(avatarFile)}`)
+        }}
+      />
 
       {/* Search */}
       <div className="relative mb-4">

@@ -4,6 +4,7 @@ import { apiPost } from '../api/client'
 import { CharacterDetailSkeleton, ErrorState } from '../components/ui'
 import type { Character } from '../types'
 import type { WorldInfoSummary } from '../types/worldInfo'
+import { exportCharacter } from '../utils/character'
 
 function CharacterDetail() {
   const { avatar } = useParams<{ avatar: string }>()
@@ -12,6 +13,7 @@ function CharacterDetail() {
   const [worlds, setWorlds] = useState<WorldInfoSummary[]>([])
   const [selectedWorld, setSelectedWorld] = useState('')
   const [savingWorld, setSavingWorld] = useState(false)
+  const [exporting, setExporting] = useState<'png' | 'json' | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -57,6 +59,26 @@ function CharacterDetail() {
       setError(err instanceof Error ? err.message : 'Failed to update world info')
     } finally {
       setSavingWorld(false)
+    }
+  }
+
+  const handleExport = async (format: 'png' | 'json') => {
+    if (!character) return
+    try {
+      setExporting(format)
+      const blob = await exportCharacter(character.avatar, format)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${character.name}.${format}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to export ${format.toUpperCase()}`)
+    } finally {
+      setExporting(null)
     }
   }
 
@@ -123,6 +145,22 @@ function CharacterDetail() {
             >
               Edit Character
             </button>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleExport('png')}
+                disabled={exporting !== null}
+                className="px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 text-sm font-medium transition-colors"
+              >
+                {exporting === 'png' ? 'Exporting...' : 'Export PNG'}
+              </button>
+              <button
+                onClick={() => handleExport('json')}
+                disabled={exporting !== null}
+                className="px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 text-sm font-medium transition-colors"
+              >
+                {exporting === 'json' ? 'Exporting...' : 'Export JSON'}
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 p-6 md:p-8 space-y-6">

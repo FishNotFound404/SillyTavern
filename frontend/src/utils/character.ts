@@ -1,4 +1,4 @@
-import { apiPost, apiPostForm } from '../api/client'
+import { apiPost, apiPostForm, getCsrfToken, initCsrfToken } from '../api/client'
 import type { Character, CharacterDraft } from '../types'
 
 export async function fetchCharacterForEdit(avatar: string): Promise<Character> {
@@ -67,4 +67,27 @@ export async function updateCharacter(avatar: string, draft: CharacterDraft): Pr
   const form = buildCharacterFormData(draft)
   form.append('avatar_url', decodeURIComponent(avatar))
   await apiPostForm<unknown>('/api/characters/edit', form)
+}
+
+export async function exportCharacter(avatar: string, format: 'png' | 'json'): Promise<Blob> {
+  await initCsrfToken()
+  const headers: Record<string, string> = {}
+  const token = getCsrfToken()
+  if (token) headers['X-CSRF-Token'] = token
+
+  const res = await fetch('/api/characters/export', {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ avatar_url: decodeURIComponent(avatar), format }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${text}`)
+  }
+
+  return res.blob()
 }

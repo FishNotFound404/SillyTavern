@@ -1,6 +1,10 @@
 let csrfToken: string | null = null
 let csrfPromise: Promise<void> | null = null
 
+export function getCsrfToken(): string | null {
+  return csrfToken
+}
+
 export async function initCsrfToken(): Promise<void> {
   if (csrfPromise) {
     return csrfPromise
