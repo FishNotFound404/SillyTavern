@@ -1,11 +1,21 @@
 """E2E smoke test + screenshot capture for the React frontend refactor."""
 
-from playwright.sync_api import sync_playwright, Page, expect
+from playwright.sync_api import sync_playwright, Page, expect, Route
+import json
 import sys
 
 BASE_URL = 'http://localhost:5173'
 AVATAR = 'default_Seraphina.png'
 OUT_DIR = 'docs/images'
+
+
+def mock_generate(route: Route) -> None:
+    """Return a fast mock reply so the smoke test doesn't need a real API key."""
+    route.fulfill(
+        status=200,
+        content_type='application/json',
+        body=json.dumps({'content': 'Hello! This is a mock reply from Seraphina.'}),
+    )
 
 
 def screenshot(page: Page, name: str) -> None:
@@ -21,6 +31,7 @@ def run() -> int:
 
         errors = []
         page.on('pageerror', lambda err: errors.append(str(err)))
+        page.route('**/api/minimax/chat/generate', mock_generate)
         def log_console(msg):
             if msg.type == 'error':
                 print(f'[console {msg.type}] {msg.text}')
