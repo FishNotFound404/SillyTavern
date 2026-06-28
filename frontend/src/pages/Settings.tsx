@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiGet } from '../api/client'
+import { apiGet, apiPost } from '../api/client'
 import { LoadingState, ErrorState } from '../components/ui'
 
 const MODEL_KEY = 'sillytavern:settings:model'
@@ -15,24 +15,57 @@ interface MiniMaxStatus {
   available_models: string[]
 }
 
+interface SecretItem {
+  id: string
+  value: string
+  label: string
+  active: boolean
+}
+
+type SecretState = Record<string, SecretItem[] | null>
+
+interface ApiKeyConfig {
+  key: string
+  label: string
+}
+
+const COMMON_API_KEYS: ApiKeyConfig[] = [
+  { key: 'api_key_openai', label: 'OpenAI' },
+  { key: 'api_key_claude', label: 'Anthropic Claude' },
+  { key: 'api_key_minimax', label: 'MiniMax' },
+  { key: 'api_key_makersuite', label: 'Google (MakerSuite)' },
+  { key: 'api_key_openrouter', label: 'OpenRouter' },
+  { key: 'api_key_deepseek', label: 'DeepSeek' },
+  { key: 'api_key_togetherai', label: 'Together AI' },
+  { key: 'api_key_mistralai', label: 'Mistral AI' },
+  { key: 'api_key_cohere', label: 'Cohere' },
+  { key: 'api_key_groq', label: 'Groq' },
+]
+
 function Settings() {
   const [backend, setBackend] = useState<BackendStatus>({ online: false })
-  const [minimax, setMinimax] = useState<MiniMaxStatus | null>(null)
+  const [minimax, setMiniMax] = useState<MiniMaxStatus | null>(null)
+  const [secrets, setSecrets] = useState<SecretState>({})
+  const [secretInputs, setSecretInputs] = useState<Record<string, string>>({})
+  const [savingKeys, setSavingKeys] = useState<Record<string, boolean>>({})
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     return localStorage.getItem(MODEL_KEY) || 'MiniMax-M3'
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
       try {
-        const [backendData, minimaxData] = await Promise.all([
+        const [backendData, minimaxData, secretsData] = await Promise.all([
           apiGet<BackendStatus>('/api/settings/status').catch(() => ({ online: false })),
           apiGet<MiniMaxStatus>('/api/minimax/status').catch(() => null),
+          apiPost<SecretState>('/api/secrets/read', {}).catch(() => ({})),
         ])
         setBackend(backendData)
-        setMinimax(minimaxData)
+        setMiniMax(minimaxData)
+        setSecrets(secretsData || {})
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load settings')
       } finally {
@@ -45,6 +78,53 @@ function Settings() {
   const handleModelChange = (model: string) => {
     setSelectedModel(model)
     localStorage.setItem(MODEL_KEY, model)
+  }
+
+  const isConfigured = (key: string) => {
+    const items = secrets[key]
+    return Array.isArray(items) && items.some((item) => item.active)
+  }
+
+  const activeSecretId = (key: string) => {
+    const items = secrets[key]
+    return items?.find((item) => item.active)?.id
+  }
+
+  const handleSaveKey = async (key: string) => {
+    const value = secretInputs[key]?.trim()
+    if (!value) return
+
+    try {
+      setSavingKeys((prev) => ({ ...prev, [key]: true }))
+      setSaveMessage(null)
+      await apiPost('/api/secrets/write', { key, value, label: 'React UI' })
+      const updated = await apiPost<SecretState>('/api/secrets/read', {})
+      setSecrets(updated || {})
+      setSecretInputs((prev) => ({ ...prev, [key]: '' }))
+      setSaveMessage(`${COMMON_API_KEYS.find((k) => k.key === key)?.label || key} API key saved`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save API key')
+    } finally {
+      setSavingKeys((prev) => ({ ...prev, [key]: false }))
+    }
+  }
+
+  const handleDeleteKey = async (key: string) => {
+    const id = activeSecretId(key)
+    if (!id) return
+
+    try {
+      setSavingKeys((prev) => ({ ...prev, [key]: true }))
+      setSaveMessage(null)
+      await apiPost('/api/secrets/delete', { key, id })
+      const updated = await apiPost<SecretState>('/api/secrets/read', {})
+      setSecrets(updated || {})
+      setSaveMessage(`${COMMON_API_KEYS.find((k) => k.key === key)?.label || key} API key removed`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete API key')
+    } finally {
+      setSavingKeys((prev) => ({ ...prev, [key]: false }))
+    }
   }
 
   if (loading) {
@@ -81,6 +161,67 @@ function Settings() {
           {backend.version && (
             <p className="text-sm text-gray-400 mt-2">Version: {backend.version}</p>
           )}
+        </section>
+
+        {/* API Keys */}
+        <section className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+          <h2 className="text-lg font-semibold text-white mb-4">API Keys</h2>
+          {saveMessage && (
+            <div className="mb-4 px-4 py-2 bg-green-900/50 border border-green-700 rounded-lg text-green-200 text-sm">
+              {saveMessage}
+            </div>
+          )}
+          <div className="space-y-4">
+            {COMMON_API_KEYS.map(({ key, label }) => {
+              const configured = isConfigured(key)
+              return (
+                <div key={key} className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white font-medium">{label}</span>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${
+                        configured
+                          ? 'bg-green-900/50 text-green-300'
+                          : 'bg-gray-700 text-gray-400'
+                      }`}
+                    >
+                      {configured ? 'Configured' : 'Not configured'}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={secretInputs[key] || ''}
+                      onChange={(e) =>
+                        setSecretInputs((prev) => ({ ...prev, [key]: e.target.value }))
+                      }
+                      placeholder={configured ? 'Enter new key to replace' : 'Enter API key'}
+                      className="flex-1 bg-gray-800 text-white rounded-lg px-3 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none text-sm"
+                    />
+                    <button
+                      onClick={() => handleSaveKey(key)}
+                      disabled={savingKeys[key] || !secretInputs[key]?.trim()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium text-sm"
+                    >
+                      {savingKeys[key] ? 'Saving...' : 'Save'}
+                    </button>
+                    {configured && (
+                      <button
+                        onClick={() => handleDeleteKey(key)}
+                        disabled={savingKeys[key]}
+                        className="px-4 py-2 bg-red-600/80 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 font-medium text-sm"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs text-gray-500 mt-4">
+            Keys are stored server-side in your data directory. Only masked values are shown.
+          </p>
         </section>
 
         {/* MiniMax Configuration */}
