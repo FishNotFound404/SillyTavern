@@ -25,6 +25,9 @@ function Navigation() {
             <NavLink to="/chat" className={linkClass}>
               Chat
             </NavLink>
+            <NavLink to="/world-info" className={linkClass}>
+              World Info
+            </NavLink>
             <NavLink to="/settings" className={linkClass}>
               Settings
             </NavLink>
