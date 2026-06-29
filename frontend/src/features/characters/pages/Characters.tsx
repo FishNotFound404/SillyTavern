@@ -1,36 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiPost } from '../api/client'
+import { useQueryClient } from '@tanstack/react-query'
 import CharacterImportModal from '../components/CharacterImportModal'
-import { Skeleton, EmptyState, ErrorState, CharacterCardSkeleton } from '../components/ui'
-import type { Character } from '../types'
+import { Skeleton, EmptyState, ErrorState, CharacterCardSkeleton } from '../../../components/ui'
+import { useCharacters, characterKeys } from '../api'
 
 function Characters() {
   const navigate = useNavigate()
-  const [characters, setCharacters] = useState<Character[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data: characters = [], isLoading: loading, error: queryError, refetch } = useCharacters()
+  const queryClient = useQueryClient()
+  const charactersError = queryError?.message ?? null
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [importOpen, setImportOpen] = useState(false)
-
-  const loadCharacters = () => {
-    setLoading(true)
-    setError(null)
-    apiPost<Character[]>('/api/characters/all', {})
-      .then((data) => {
-        setCharacters(data || [])
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError(err.message)
-        setLoading(false)
-      })
-  }
-
-  useEffect(() => {
-    loadCharacters()
-  }, [])
 
   const allTags = useMemo(() => {
     const tagSet = new Set<string>()
@@ -86,12 +68,12 @@ function Characters() {
     )
   }
 
-  if (error) {
+  if (charactersError) {
     return (
       <ErrorState
         title="Failed to load characters"
-        message={error}
-        onRetry={loadCharacters}
+        message={charactersError}
+        onRetry={() => refetch()}
       />
     )
   }
@@ -127,7 +109,7 @@ function Characters() {
         isOpen={importOpen}
         onClose={() => setImportOpen(false)}
         onImported={(avatar) => {
-          loadCharacters()
+          queryClient.invalidateQueries({ queryKey: characterKeys.all })
           const avatarFile = avatar.endsWith('.png') ? avatar : `${avatar}.png`
           navigate(`/character/${encodeURIComponent(avatarFile)}`)
         }}

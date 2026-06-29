@@ -1,4 +1,5 @@
-import type { Character, ChatLine, ChatMessage, ChatMetadata } from '../types'
+import type { Character } from '../features/characters/types'
+import type { ChatLine, ChatMessage, ChatMetadata } from '../types'
 
 export function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {

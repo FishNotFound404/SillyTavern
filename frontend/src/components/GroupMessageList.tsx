@@ -1,7 +1,8 @@
 import type { RefObject } from 'react'
 import { ChatMessageBubble } from './ChatMessageBubble'
 import { EmptyState } from './ui'
-import type { Character, ChatMessage } from '../types'
+import type { Character } from '../features/characters/types'
+import type { ChatMessage } from '../types'
 
 interface GroupMessageListProps {
   messages: ChatMessage[]

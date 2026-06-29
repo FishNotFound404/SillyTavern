@@ -1,6 +1,6 @@
-import { TextField } from './form/TextField'
-import { TextAreaField } from './form/TextAreaField'
-import { TagsInput } from './form/TagsInput'
+import { TextField } from '../../../components/form/TextField'
+import { TextAreaField } from '../../../components/form/TextAreaField'
+import { TagsInput } from '../../../components/form/TagsInput'
 import type { CharacterDraft } from '../types'
 
 interface CharacterFormFieldsProps {

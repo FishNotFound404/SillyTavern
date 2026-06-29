@@ -1,4 +1,5 @@
-import type { Character, ChatFile, ChatLine } from '../types'
+import type { Character } from '../features/characters/types'
+import type { ChatFile, ChatLine } from '../types'
 
 interface ChatHeaderProps {
   character: Character | null

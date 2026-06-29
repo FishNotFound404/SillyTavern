@@ -1,4 +1,4 @@
-import type { Character } from './index'
+import type { Character } from '../features/characters/types'
 
 export interface Group {
   id: string
