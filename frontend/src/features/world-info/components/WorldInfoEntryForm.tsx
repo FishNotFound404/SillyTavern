@@ -1,5 +1,5 @@
-import type { WorldInfoEntry } from '../types/worldInfo'
-import { keysToText, POSITION_LABELS, textToKeys } from '../utils/worldInfo'
+import type { WorldInfoEntry } from '../types'
+import { keysToText, POSITION_LABELS, textToKeys } from '../utils'
 
 interface WorldInfoEntryFormProps {
   entry: WorldInfoEntry

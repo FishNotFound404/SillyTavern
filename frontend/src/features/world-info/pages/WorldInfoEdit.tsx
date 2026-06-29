@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { LoadingState, ErrorState } from '../components/ui'
+import { LoadingState, ErrorState } from '../../../components/ui'
 import { WorldInfoHeader } from '../components/WorldInfoHeader'
 import { WorldInfoEntryHeader } from '../components/WorldInfoEntryHeader'
 import { WorldInfoEntryForm } from '../components/WorldInfoEntryForm'

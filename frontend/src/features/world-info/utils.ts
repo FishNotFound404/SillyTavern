@@ -1,4 +1,4 @@
-import type { WorldInfoEntry, WorldInfoFile } from '../types/worldInfo'
+import type { WorldInfoEntry, WorldInfoFile } from './types'
 
 export const POSITION_LABELS: Record<number, string> = {
   0: 'Before character defs',

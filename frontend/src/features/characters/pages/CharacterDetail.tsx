@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { apiPost } from '../../../api/client'
 import { CharacterDetailSkeleton, ErrorState } from '../../../components/ui'
 import { useCharacter, useAssociateWorld } from '../api'
 import { exportCharacter } from '../utils'
-import type { WorldInfoSummary } from '../types'
+import { useWorldInfos } from '../../world-info/api'
 
 function CharacterDetail() {
   const { avatar } = useParams<{ avatar: string }>()
@@ -15,10 +13,7 @@ function CharacterDetail() {
   const { data: character, isLoading: loading, error: queryError, refetch } = useCharacter(avatarParam)
   const associateWorldMutation = useAssociateWorld()
 
-  const { data: worlds = [] } = useQuery<WorldInfoSummary[]>({
-    queryKey: ['world-info', 'list'],
-    queryFn: () => apiPost<WorldInfoSummary[]>('/api/worldinfo/list', {}),
-  })
+  const { data: worlds = [] } = useWorldInfos()
 
   const [selectedWorld, setSelectedWorld] = useState('')
   const [savingWorld, setSavingWorld] = useState(false)

@@ -1,74 +1,73 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiPost } from '../api/client'
-import { LoadingState, EmptyState, ErrorState } from '../components/ui'
-import type { WorldInfoSummary } from '../types/worldInfo'
+import { LoadingState, EmptyState, ErrorState } from '../../../components/ui'
+import { useWorldInfos, useDeleteWorldInfo, useSaveWorldInfo } from '../api'
 
 function WorldInfo() {
   const navigate = useNavigate()
-  const [worlds, setWorlds] = useState<WorldInfoSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data: worlds = [], isLoading: loading, error, refetch } = useWorldInfos()
+  const deleteMutation = useDeleteWorldInfo()
+  const createMutation = useSaveWorldInfo()
+  const [filter, setFilter] = useState('')
 
-  const loadWorlds = async () => {
-    try {
-      setLoading(true)
-      const data = await apiPost<WorldInfoSummary[]>('/api/worldinfo/list', {})
-      setWorlds(Array.isArray(data) ? data : [])
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load world info')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadWorlds()
-  }, [])
+  const filteredWorlds = filter.trim()
+    ? worlds.filter((world) =>
+        (world.name || world.file_id).toLowerCase().includes(filter.toLowerCase()),
+      )
+    : worlds
 
   const handleCreate = async () => {
     const name = window.prompt('New world info name:')?.trim()
     if (!name) return
 
     try {
-      await apiPost('/api/worldinfo/edit', {
-        name,
-        data: { name, entries: {} },
-      })
-      await loadWorlds()
+      await createMutation.mutateAsync({ name, data: { name, entries: {} } })
       navigate(`/world-info/${encodeURIComponent(name)}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create world info')
+    } catch {
+      // mutation error is surfaced below
     }
   }
 
   const handleDelete = async (fileId: string) => {
     if (!window.confirm(`Delete "${fileId}"? This cannot be undone.`)) return
     try {
-      await apiPost('/api/worldinfo/delete', { name: fileId })
-      await loadWorlds()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete world info')
+      await deleteMutation.mutateAsync(fileId)
+    } catch {
+      // mutation error is surfaced below
     }
   }
 
   if (loading) return <LoadingState message="Loading world info..." />
-  if (error) return <ErrorState title="Couldn’t load world info" message={error} onRetry={loadWorlds} />
+  if (error) return <ErrorState title="Couldn’t load world info" message={error.message} onRetry={() => refetch()} />
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-white">World Info / Lorebooks</h1>
-        <button
-          onClick={handleCreate}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-        >
-          New World Info
-        </button>
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Search world info..."
+            className="px-3 py-2 bg-gray-900 border border-gray-800 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+          />
+          <button
+            onClick={handleCreate}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+          >
+            New World Info
+          </button>
+        </div>
       </div>
 
-      {worlds.length === 0 ? (
+      {(createMutation.error?.message || deleteMutation.error?.message) && (
+        <div className="mb-4 px-4 py-2 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
+          {createMutation.error?.message || deleteMutation.error?.message}
+        </div>
+      )}
+
+      {filteredWorlds.length === 0 ? (
         <EmptyState
           title="No world info yet"
           description="World Info (also called Lorebooks) lets you inject text into the prompt when certain keywords appear. Create one to get started."
@@ -80,7 +79,7 @@ function WorldInfo() {
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {worlds.map((world) => (
+          {filteredWorlds.map((world) => (
             <div
               key={world.file_id}
               onClick={() => navigate(`/world-info/${encodeURIComponent(world.file_id)}`)}

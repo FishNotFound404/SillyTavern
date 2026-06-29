@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { apiPost } from '../api/client'
-import type { WorldInfoEntry, WorldInfoFile } from '../types/worldInfo'
-import { createDefaultEntry, getNextEntryUid } from '../utils/worldInfo'
+import { useWorldInfo, useSaveWorldInfo } from '../api'
+import type { WorldInfoEntry, WorldInfoFile } from '../types'
+import { createDefaultEntry, getNextEntryUid } from '../utils'
 
 export interface UseWorldInfoEditResult {
   fileData: WorldInfoFile | null
@@ -23,29 +23,26 @@ export function useWorldInfoEdit(): UseWorldInfoEditResult {
   const { name } = useParams<{ name: string }>()
   const decodedName = decodeURIComponent(name || '')
 
+  const {
+    data: queryData,
+    isLoading,
+    error: queryError,
+    refetch,
+  } = useWorldInfo(decodedName)
+  const saveMutation = useSaveWorldInfo()
+
   const [fileData, setFileData] = useState<WorldInfoFile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [expandedUid, setExpandedUid] = useState<number | null>(null)
 
-  const loadWorldInfo = useCallback(async () => {
-    if (!decodedName) return
-    try {
-      setLoading(true)
-      const data = await apiPost<WorldInfoFile>('/api/worldinfo/get', { name: decodedName })
-      setFileData(data && data.entries ? data : { name: decodedName, entries: {} })
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load world info')
-    } finally {
-      setLoading(false)
-    }
-  }, [decodedName])
-
   useEffect(() => {
-    loadWorldInfo()
-  }, [loadWorldInfo])
+    if (queryData) {
+      setFileData(queryData && queryData.entries ? queryData : { name: decodedName, entries: {} })
+    }
+  }, [queryData, decodedName])
+
+  const loadWorldInfo = useCallback(() => {
+    refetch()
+  }, [refetch])
 
   const entries = useMemo(() => {
     if (!fileData) return []
@@ -100,19 +97,12 @@ export function useWorldInfoEdit(): UseWorldInfoEditResult {
 
   const handleSave = useCallback(async () => {
     if (!decodedName || !fileData) return
-    try {
-      setSaving(true)
-      await apiPost('/api/worldinfo/edit', {
-        name: decodedName,
-        data: fileData,
-      })
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save world info')
-    } finally {
-      setSaving(false)
-    }
-  }, [decodedName, fileData])
+    await saveMutation.mutateAsync({ name: decodedName, data: fileData })
+  }, [decodedName, fileData, saveMutation])
+
+  const loading = isLoading
+  const saving = saveMutation.isPending
+  const error = queryError?.message ?? saveMutation.error?.message ?? null
 
   return {
     fileData,

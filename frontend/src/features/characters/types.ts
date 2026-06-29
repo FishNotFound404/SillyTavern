@@ -1,10 +1,5 @@
 import type { ChatFile, ChatLine } from '../../api/types'
 
-export interface WorldInfoSummary {
-  file_id: string
-  name: string
-}
-
 export interface Character {
   name: string
   description?: string

@@ -1,4 +1,4 @@
-import type { WorldInfoEntry } from '../types/worldInfo'
+import type { WorldInfoEntry } from '../types'
 
 interface WorldInfoEntryHeaderProps {
   entry: WorldInfoEntry
