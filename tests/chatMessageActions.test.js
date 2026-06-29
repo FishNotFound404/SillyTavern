@@ -161,3 +161,165 @@ describe('chatMessageActions', () => {
     })
   })
 })
+
+
+// --- Swipe helpers ---
+
+import {
+  appendSwipe,
+  deleteCurrentSwipe,
+  ensureSwipes,
+  setSwipeId,
+  syncMesToSwipe,
+  updateCurrentSwipe,
+} from '../frontend/src/utils/chatMessageActions.js'
+
+describe('swipe helpers', () => {
+  const makeAssistantWithSwipes = (swipes, swipeId = 0) => ({
+    name: 'Seraphina',
+    is_user: false,
+    mes: swipes[swipeId],
+    send_date: '2026-01-01T00:00:00.000Z',
+    swipes,
+    swipe_id: swipeId,
+    swipe_info: swipes.map(() => ({})),
+  })
+
+  describe('ensureSwipes', () => {
+    it('initializes swipes for an assistant message without them', () => {
+      const message = makeAssistantMessage('hello')
+      const result = ensureSwipes(message)
+      expect(result.swipes).toEqual(['hello'])
+      expect(result.swipe_id).toBe(0)
+      expect(result.swipe_info).toHaveLength(1)
+      expect(result.mes).toBe('hello')
+    })
+
+    it('syncs mes to swipe_id when swipes already exist', () => {
+      const message = makeAssistantWithSwipes(['a', 'b', 'c'], 2)
+      const modified = { ...message, mes: 'wrong' }
+      const result = ensureSwipes(modified)
+      expect(result.mes).toBe('c')
+      expect(result.swipe_id).toBe(2)
+    })
+
+    it('leaves user messages unchanged', () => {
+      const message = makeUserMessage('hi')
+      const result = ensureSwipes(message)
+      expect(result).toEqual(message)
+    })
+  })
+
+  describe('syncMesToSwipe', () => {
+    it('sets mes to the active swipe text', () => {
+      const message = makeAssistantWithSwipes(['first', 'second'], 1)
+      const modified = { ...message, mes: 'first' }
+      const result = syncMesToSwipe(modified)
+      expect(result.mes).toBe('second')
+    })
+  })
+
+  describe('appendSwipe', () => {
+    it('adds an empty swipe and activates it', () => {
+      const message = makeAssistantWithSwipes(['hello'], 0)
+      const result = appendSwipe(message)
+      expect(result.swipes).toEqual(['hello', ''])
+      expect(result.swipe_id).toBe(1)
+      expect(result.mes).toBe('')
+      expect(result.swipe_info).toHaveLength(2)
+    })
+
+    it('initializes swipes before appending if missing', () => {
+      const message = makeAssistantMessage('hello')
+      const result = appendSwipe(message)
+      expect(result.swipes).toEqual(['hello', ''])
+      expect(result.swipe_id).toBe(1)
+    })
+  })
+
+  describe('updateCurrentSwipe', () => {
+    it('updates the active swipe and mes', () => {
+      const message = makeAssistantWithSwipes(['a', 'b'], 1)
+      const result = updateCurrentSwipe(message, 'edited')
+      expect(result.mes).toBe('edited')
+      expect(result.swipes).toEqual(['a', 'edited'])
+      expect(result.send_date).not.toBe(message.send_date)
+    })
+
+    it('updates swipe_info send_date for the active swipe', () => {
+      const message = makeAssistantWithSwipes(['a', 'b'], 1)
+      const result = updateCurrentSwipe(message, 'edited')
+      expect(result.swipe_info[1].send_date).toBeDefined()
+      expect(result.swipe_info[0].send_date).toBeUndefined()
+    })
+
+    it('falls back to updating mes for messages without swipes', () => {
+      const message = makeUserMessage('hi')
+      const result = updateCurrentSwipe(message, 'hello')
+      expect(result.mes).toBe('hello')
+    })
+  })
+
+  describe('setSwipeId', () => {
+    it('switches active swipe without branching when target is the last message', () => {
+      const chatData = [
+        makeMetadata(),
+        makeUserMessage('prompt'),
+        makeAssistantWithSwipes(['first', 'second'], 0),
+      ]
+      const result = setSwipeId(chatData, 1, 1, true)
+      expect(result).toHaveLength(3)
+      expect(result[2].swipe_id).toBe(1)
+      expect(result[2].mes).toBe('second')
+    })
+
+    it('branches by truncating later messages when switching an earlier message', () => {
+      const chatData = [
+        makeMetadata(),
+        makeAssistantWithSwipes(['a1', 'a2'], 0),
+        makeUserMessage('follow up'),
+        makeAssistantWithSwipes(['b1'], 0),
+      ]
+      const result = setSwipeId(chatData, 0, 1, true)
+      expect(result).toHaveLength(2)
+      expect(result[1].swipe_id).toBe(1)
+      expect(result[1].mes).toBe('a2')
+    })
+
+    it('does not truncate when branch=false', () => {
+      const chatData = [
+        makeMetadata(),
+        makeAssistantWithSwipes(['a1', 'a2'], 0),
+        makeUserMessage('follow up'),
+      ]
+      const result = setSwipeId(chatData, 0, 1, false)
+      expect(result).toHaveLength(3)
+      expect(result[1].swipe_id).toBe(1)
+    })
+  })
+
+  describe('deleteCurrentSwipe', () => {
+    it('deletes the active swipe and moves to the previous one', () => {
+      const chatData = [
+        makeMetadata(),
+        makeUserMessage('prompt'),
+        makeAssistantWithSwipes(['first', 'second', 'third'], 2),
+      ]
+      const result = deleteCurrentSwipe(chatData, 1)
+      expect(result).toHaveLength(3)
+      expect(result[2].swipes).toEqual(['first', 'second'])
+      expect(result[2].swipe_id).toBe(1)
+      expect(result[2].mes).toBe('second')
+    })
+
+    it('deletes the whole message when only one swipe remains', () => {
+      const chatData = [
+        makeMetadata(),
+        makeUserMessage('prompt'),
+        makeAssistantWithSwipes(['only'], 0),
+      ]
+      const result = deleteCurrentSwipe(chatData, 1)
+      expect(result).toHaveLength(2)
+    })
+  })
+})

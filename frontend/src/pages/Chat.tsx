@@ -6,10 +6,14 @@ import { ChatSkeleton, EmptyState, ErrorState } from '../components/ui'
 import { ChatMessageBubble } from '../components/ChatMessageBubble'
 import type { Character, ChatMessage, ChatMetadata } from '../types'
 import {
+  appendSwipe,
   applyMessageEdit,
   deleteMessage,
+  ensureSwipes,
   isChatMessage,
   prepareRegenerateContext,
+  setSwipeId,
+  updateCurrentSwipe,
 } from '../utils/chatMessageActions'
 import { gatherMatchingLore } from '../utils/lorebook'
 import type { ConnectionSettings } from '../types/connection'
@@ -84,6 +88,8 @@ interface ChatMessageItemProps {
   onEditTextChange: (text: string) => void
   onDelete: (index: number) => void
   onRegenerate: (index: number) => void
+  onSwipeChange: (index: number, direction: -1 | 1) => void
+  onSwipeSelect: (index: number, swipeId: number) => void
 }
 
 function ChatMessageItem({
@@ -101,6 +107,8 @@ function ChatMessageItem({
   onEditTextChange,
   onDelete,
   onRegenerate,
+  onSwipeChange,
+  onSwipeSelect,
 }: ChatMessageItemProps) {
   const avatarUrl = message.is_user ? userAvatar : characterAvatar
 
@@ -167,6 +175,45 @@ function ChatMessageItem({
     )
   }
 
+  const swipeCount = message.swipes?.length ?? 1
+  const swipeId = message.swipe_id ?? 0
+  const swipeFooter = !message.is_user && swipeCount > 1 ? (
+    <div className="flex items-center gap-1 mt-1 select-none">
+      <button
+        onClick={() => onSwipeChange(index, -1)}
+        disabled={swipeId === 0}
+        aria-label="Previous swipe"
+        className="p-1 text-gray-400 hover:text-white disabled:opacity-30 rounded"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+      </button>
+      <select
+        value={swipeId}
+        onChange={(e) => onSwipeSelect(index, Number(e.target.value))}
+        aria-label="Select swipe"
+        className="text-xs bg-transparent text-gray-300 focus:outline-none cursor-pointer"
+      >
+        {message.swipes?.map((_, i) => (
+          <option key={i} value={i} className="bg-gray-800 text-white">
+            {i + 1}/{swipeCount}
+          </option>
+        ))}
+      </select>
+      <button
+        onClick={() => onSwipeChange(index, 1)}
+        disabled={swipeId === swipeCount - 1}
+        aria-label="Next swipe"
+        className="p-1 text-gray-400 hover:text-white disabled:opacity-30 rounded"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        </svg>
+      </button>
+    </div>
+  ) : null
+
   return (
     <div className="group">
       <ChatMessageBubble
@@ -174,6 +221,7 @@ function ChatMessageItem({
         avatarUrl={avatarUrl}
         isUser={message.is_user}
         query={query}
+        footer={swipeFooter}
       >
         <div
           className={`absolute top-1 ${
@@ -355,7 +403,7 @@ function Chat() {
     })
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
-          setChatData(data)
+          setChatData(data.map((line) => (isChatMessage(line) ? ensureSwipes(line) : line)))
         } else {
           setChatData([createChatMetadata(character?.name || 'Character', activePersonaName)])
         }
@@ -505,6 +553,9 @@ function Chat() {
         is_user: false,
         mes: character.first_mes,
         send_date: new Date().toISOString(),
+        swipes: [character.first_mes],
+        swipe_id: 0,
+        swipe_info: [{}],
       })
     }
 
@@ -538,6 +589,9 @@ function Chat() {
           is_user: false,
           mes: character.first_mes,
           send_date: new Date().toISOString(),
+          swipes: [character.first_mes],
+          swipe_id: 0,
+          swipe_info: [{}],
         })
       }
 
@@ -574,7 +628,11 @@ function Chat() {
       is_user: false,
       mes: '',
       send_date: new Date().toISOString(),
+      swipes: [''],
+      swipe_id: 0,
+      swipe_info: [{}],
     }
+    const replyIndex = nextChatData.length
     let workingChat: ChatLine[] = [...nextChatData, reply]
     setChatData(workingChat)
     setInput('')
@@ -593,7 +651,8 @@ function Chat() {
       let streamedText = ''
       for await (const delta of streamCompletion(endpoint, body, abortControllerRef.current.signal)) {
         streamedText += delta
-        workingChat = [...workingChat.slice(0, -1), { ...reply, mes: streamedText }]
+        const updatedReply = updateCurrentSwipe(workingChat[replyIndex], streamedText)
+        workingChat = [...workingChat.slice(0, replyIndex), updatedReply, ...workingChat.slice(replyIndex + 1)]
         setChatData(workingChat)
       }
 
@@ -613,10 +672,11 @@ function Chat() {
       }
 
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      workingChat = [...workingChat.slice(0, -1), {
-        ...reply,
-        mes: `[Error generating reply: ${errorMessage}]`,
-      }]
+      const updatedReply = updateCurrentSwipe(
+        workingChat[replyIndex],
+        `[Error generating reply: ${errorMessage}]`,
+      )
+      workingChat = [...workingChat.slice(0, replyIndex), updatedReply, ...workingChat.slice(replyIndex + 1)]
       setChatData(workingChat)
       await apiPost('/api/chats/save', {
         avatar_url: avatarUrl,
@@ -666,26 +726,33 @@ function Chat() {
     await saveChatData(updated)
   }
 
+  const handleSwipeChange = async (messageIndex: number, direction: -1 | 1) => {
+    const target = messages[messageIndex]
+    if (!target || target.is_user) return
+    const newSwipeId = (target.swipe_id ?? 0) + direction
+    const updated = setSwipeId(chatData, messageIndex, newSwipeId, true)
+    setChatData(updated)
+    await saveChatData(updated)
+  }
+
+  const handleSwipeSelect = async (messageIndex: number, swipeId: number) => {
+    const updated = setSwipeId(chatData, messageIndex, swipeId, true)
+    setChatData(updated)
+    await saveChatData(updated)
+  }
+
   const handleRegenerate = async (messageIndex: number) => {
     if (!character || generating) return
     const context = prepareRegenerateContext(chatData, messageIndex)
     if (!context) return
 
-    const { truncated, historyMessages } = context
-    setChatData(truncated)
-    setGenerating(true)
-    abortControllerRef.current = new AbortController()
-
+    const { target, truncated, historyMessages } = context
     const contextText = historyMessages.map((m) => m.mes).join('\n')
     const loreContents = gatherMatchingLore(character.data?.character_book, contextText)
 
-    const reply: ChatMessage = {
-      name: character.name,
-      is_user: false,
-      mes: '',
-      send_date: new Date().toISOString(),
-    }
-    let workingChat: ChatLine[] = [...truncated, reply]
+    const targetWithSwipe = appendSwipe(target)
+    const chatDataIndex = truncated.length
+    let workingChat: ChatLine[] = [...truncated, targetWithSwipe]
     setChatData(workingChat)
     setGenerating(true)
     abortControllerRef.current = new AbortController()
@@ -701,7 +768,8 @@ function Chat() {
       let streamedText = ''
       for await (const delta of streamCompletion(endpoint, body, abortControllerRef.current.signal)) {
         streamedText += delta
-        workingChat = [...workingChat.slice(0, -1), { ...reply, mes: streamedText }]
+        const updatedTarget = updateCurrentSwipe(workingChat[chatDataIndex], streamedText)
+        workingChat = [...workingChat.slice(0, chatDataIndex), updatedTarget, ...workingChat.slice(chatDataIndex + 1)]
         setChatData(workingChat)
       }
 
@@ -713,10 +781,11 @@ function Chat() {
       }
 
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      workingChat = [...workingChat.slice(0, -1), {
-        ...reply,
-        mes: `[Error generating reply: ${errorMessage}]`,
-      }]
+      const updatedTarget = updateCurrentSwipe(
+        workingChat[chatDataIndex],
+        `[Error generating reply: ${errorMessage}]`,
+      )
+      workingChat = [...workingChat.slice(0, chatDataIndex), updatedTarget, ...workingChat.slice(chatDataIndex + 1)]
       setChatData(workingChat)
       await saveChatData(workingChat)
     } finally {
@@ -962,6 +1031,8 @@ function Chat() {
                     onEditTextChange={setEditText}
                     onDelete={handleDelete}
                     onRegenerate={handleRegenerate}
+                    onSwipeChange={handleSwipeChange}
+                    onSwipeSelect={handleSwipeSelect}
                   />
                 </div>
               )

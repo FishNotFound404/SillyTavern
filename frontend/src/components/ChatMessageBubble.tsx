@@ -6,6 +6,7 @@ interface ChatMessageBubbleProps {
   isUser?: boolean
   query?: string
   children?: React.ReactNode
+  footer?: React.ReactNode
 }
 
 function escapeRegExp(text: string): string {
@@ -48,6 +49,7 @@ export function ChatMessageBubble({
   isUser,
   query,
   children,
+  footer,
 }: ChatMessageBubbleProps) {
   const displayText = stripThinkTags(message.mes)
 
@@ -76,6 +78,7 @@ export function ChatMessageBubble({
             '[No visible content]'
           )}
         </div>
+        {footer}
       </div>
     </div>
   )

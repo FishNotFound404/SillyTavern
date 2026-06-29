@@ -80,6 +80,7 @@ python e2e_character_export.py
 python e2e_group_chat.py
 python e2e_settings_models.py
 python e2e_chat_search.py
+python e2e_chat_swipes.py
 ```
 
 These launch a headless browser, run smoke tests through the main user flows, and refresh the screenshots under `docs/images/`.

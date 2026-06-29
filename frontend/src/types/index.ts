@@ -64,6 +64,15 @@ export interface ChatMessage {
   is_user: boolean
   mes: string
   send_date: string
+  swipe_id?: number
+  swipes?: string[]
+  swipe_info?: Array<{
+    send_date?: string
+    gen_started?: string
+    gen_finished?: string
+    extra?: Record<string, unknown>
+  }>
+  extra?: Record<string, unknown>
 }
 
 export interface ChatMetadata {
