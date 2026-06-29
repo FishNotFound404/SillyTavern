@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { LoadingState } from '../components/ui'
+import { LoadingState } from '../../../components/ui'
 import { CharacterAvatarUpload } from '../components/CharacterAvatarUpload'
 import { CharacterFormFields } from '../components/CharacterFormFields'
 import { CharacterAdvancedFields } from '../components/CharacterAdvancedFields'

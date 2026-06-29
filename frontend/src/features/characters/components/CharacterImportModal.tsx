@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import { apiPostForm } from '../api/client'
-import { importCharacterFromUrl } from '../utils/character'
-import { TextField } from './form/TextField'
+import { apiPostForm } from '../../../api/client'
+import { importCharacterFromUrl } from '../api'
+import { TextField } from '../../../components/form/TextField'
 
 interface CharacterImportModalProps {
   isOpen: boolean

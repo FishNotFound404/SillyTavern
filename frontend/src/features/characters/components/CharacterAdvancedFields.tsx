@@ -1,5 +1,5 @@
-import { TextField } from './form/TextField'
-import { TextAreaField } from './form/TextAreaField'
+import { TextField } from '../../../components/form/TextField'
+import { TextAreaField } from '../../../components/form/TextAreaField'
 import type { CharacterDraft } from '../types'
 
 interface CharacterAdvancedFieldsProps {

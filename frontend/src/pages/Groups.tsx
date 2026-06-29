@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState, ErrorState, LoadingState } from '../components/ui'
-import type { Group } from '../types'
+import type { Group } from '../types/group'
 import { deleteGroup, fetchGroups } from '../utils/group'
 
 function Groups() {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiPost } from '../api/client'
 import { EmptyState, ErrorState, LoadingState } from '../components/ui'
-import type { Character } from '../types'
+import type { Character } from '../features/characters/types'
 import { createGroup } from '../utils/group'
 
 function GroupEdit() {

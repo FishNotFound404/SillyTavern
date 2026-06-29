@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useMatch } from 'react-router-dom'
-import type { CharacterDraft } from '../types'
-import { DEFAULT_CHARACTER_FORM } from '../types'
-import { characterToDraft, createCharacter, fetchCharacterForEdit, updateCharacter } from '../utils/character'
+import { useMatch, useNavigate, useParams } from 'react-router-dom'
+import { useCharacter, useCreateCharacter, useUpdateCharacter } from '../api'
+import { DEFAULT_CHARACTER_FORM, type CharacterDraft } from '../types'
+import { buildCharacterFormData, characterToDraft } from '../utils'
 
 export interface UseCharacterEditResult {
   draft: CharacterDraft
@@ -21,49 +21,28 @@ export function useCharacterEdit(): UseCharacterEditResult {
   const navigate = useNavigate()
   const { avatar } = useParams<{ avatar?: string }>()
   const isCreate = Boolean(useMatch('/character/new'))
+  const avatarParam = avatar ? decodeURIComponent(avatar) : undefined
 
   const [draft, setDraft] = useState<CharacterDraft>(DEFAULT_CHARACTER_FORM)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState(!isCreate)
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
 
-  const avatarParam = avatar ? decodeURIComponent(avatar) : undefined
+  const { isLoading: queryLoading, error: queryError, data: characterData } = useCharacter(avatarParam)
+  const createMutation = useCreateCharacter()
+  const updateMutation = useUpdateCharacter()
 
   useEffect(() => {
     if (isCreate) {
       setDraft(DEFAULT_CHARACTER_FORM)
-      setLoading(false)
       return
     }
 
-    if (!avatarParam) {
-      setError('No character selected')
-      setLoading(false)
-      return
+    if (characterData) {
+      setDraft(characterToDraft(characterData as unknown as Record<string, unknown>))
+    } else {
+      setDraft(DEFAULT_CHARACTER_FORM)
     }
-
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-
-    fetchCharacterForEdit(avatarParam)
-      .then((character) => {
-        if (cancelled) return
-        setDraft(characterToDraft(character as unknown as Record<string, unknown>))
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Failed to load character')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [isCreate, avatarParam])
+  }, [isCreate, avatarParam, characterData])
 
   const currentAvatarUrl = useMemo(() => {
     if (previewUrl) return previewUrl
@@ -71,9 +50,12 @@ export function useCharacterEdit(): UseCharacterEditResult {
     return null
   }, [previewUrl, draft.avatarUrl])
 
-  const updateField = useCallback(<K extends keyof CharacterDraft>(field: K, value: CharacterDraft[K]) => {
-    setDraft((prev) => ({ ...prev, [field]: value }))
-  }, [])
+  const updateField = useCallback(
+    <K extends keyof CharacterDraft>(field: K, value: CharacterDraft[K]) => {
+      setDraft((prev) => ({ ...prev, [field]: value }))
+    },
+    [],
+  )
 
   const handleFileSelect = useCallback(
     (file: File | null) => {
@@ -92,32 +74,36 @@ export function useCharacterEdit(): UseCharacterEditResult {
     [previewUrl, updateField],
   )
 
+  const saving = createMutation.isPending || updateMutation.isPending
+  const error = localError || (queryError?.message ?? null)
+  const loading = isCreate ? false : queryLoading
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
       if (!draft.name.trim()) {
-        setError('Character name is required')
+        setLocalError('Character name is required')
         return
       }
 
-      setSaving(true)
-      setError(null)
+      setLocalError(null)
 
       try {
+        const form = buildCharacterFormData(draft)
         if (isCreate) {
-          const newAvatar = await createCharacter(draft)
-          navigate(`/character/${encodeURIComponent(newAvatar)}`)
+          const newAvatar = await createMutation.mutateAsync(form)
+          const avatarFile = newAvatar.endsWith('.png') ? newAvatar : `${newAvatar}.png`
+          navigate(`/character/${encodeURIComponent(avatarFile)}`)
         } else if (avatarParam) {
-          await updateCharacter(avatarParam, draft)
+          form.append('avatar_url', avatarParam)
+          await updateMutation.mutateAsync(form)
           navigate(`/character/${encodeURIComponent(avatarParam)}`)
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to save character')
-      } finally {
-        setSaving(false)
+        setLocalError(err instanceof Error ? err.message : 'Failed to save character')
       }
     },
-    [draft, isCreate, avatarParam, navigate],
+    [draft, isCreate, avatarParam, createMutation, updateMutation, navigate],
   )
 
   return {

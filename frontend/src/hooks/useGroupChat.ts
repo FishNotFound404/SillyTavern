@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { apiPost } from '../api/client'
-import type { Character, ChatMessage, Group, PersonaState } from '../types'
+import type { ChatMessage } from '../api/types'
+import type { Character } from '../features/characters/types'
 import type { ConnectionSettings } from '../types/connection'
+import type { Group } from '../types/group'
+import type { PersonaState } from '../types/persona'
 import { stripThinkTags } from '../utils/chat'
 import { isChatMessage } from '../utils/chatMessageActions'
 import {

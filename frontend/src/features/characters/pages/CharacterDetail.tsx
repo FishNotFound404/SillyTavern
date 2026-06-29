@@ -1,64 +1,46 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { apiPost } from '../api/client'
-import { CharacterDetailSkeleton, ErrorState } from '../components/ui'
-import type { Character } from '../types'
-import type { WorldInfoSummary } from '../types/worldInfo'
-import { exportCharacter } from '../utils/character'
+import { useQuery } from '@tanstack/react-query'
+import { apiPost } from '../../../api/client'
+import { useCharacter, useAssociateWorld, exportCharacter } from '../api'
+import { CharacterDetailSkeleton, ErrorState } from '../../../components/ui'
+import type { WorldInfoSummary } from '../types'
 
 function CharacterDetail() {
   const { avatar } = useParams<{ avatar: string }>()
   const navigate = useNavigate()
-  const [character, setCharacter] = useState<Character | null>(null)
-  const [worlds, setWorlds] = useState<WorldInfoSummary[]>([])
+  const avatarParam = avatar ? decodeURIComponent(avatar) : undefined
+
+  const {
+    data: character,
+    isLoading: loading,
+    error: queryError,
+  } = useCharacter(avatarParam)
+
+  const { data: worlds = [] } = useQuery({
+    queryKey: ['worldinfo', 'list'],
+    queryFn: () => apiPost<WorldInfoSummary[]>('/api/worldinfo/list', {}),
+  })
+
+  const associateWorldMutation = useAssociateWorld()
+
   const [selectedWorld, setSelectedWorld] = useState('')
-  const [savingWorld, setSavingWorld] = useState(false)
   const [exporting, setExporting] = useState<'png' | 'json' | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
 
-  const loadCharacter = useCallback(() => {
-    if (!avatar) {
-      setError('No character selected')
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-    Promise.all([
-      apiPost<Character>('/api/characters/get', { avatar_url: decodeURIComponent(avatar) }),
-      apiPost<WorldInfoSummary[]>('/api/worldinfo/list', {}),
-    ])
-      .then(([charData, worldsData]) => {
-        setCharacter(charData)
-        setWorlds(Array.isArray(worldsData) ? worldsData : [])
-        const currentWorld = charData.world || charData.data?.extensions?.world || ''
-        setSelectedWorld(currentWorld)
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError(err.message)
-        setLoading(false)
-      })
-  }, [avatar])
-
-  useEffect(() => {
-    loadCharacter()
-  }, [loadCharacter])
+  const currentWorld = character?.world || character?.data?.extensions?.world || ''
+  const effectiveSelectedWorld = selectedWorld || currentWorld
 
   const handleSaveWorld = async () => {
     if (!character) return
     try {
-      setSavingWorld(true)
-      await apiPost('/api/characters/world', {
-        avatar_url: character.avatar,
-        world: selectedWorld,
+      setLocalError(null)
+      await associateWorldMutation.mutateAsync({
+        avatar: character.avatar,
+        world: effectiveSelectedWorld,
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update world info')
-    } finally {
-      setSavingWorld(false)
+      setLocalError(err instanceof Error ? err.message : 'Failed to update world info')
     }
   }
 
@@ -66,6 +48,7 @@ function CharacterDetail() {
     if (!character) return
     try {
       setExporting(format)
+      setLocalError(null)
       const blob = await exportCharacter(character.avatar, format)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -76,7 +59,7 @@ function CharacterDetail() {
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to export ${format.toUpperCase()}`)
+      setLocalError(err instanceof Error ? err.message : `Failed to export ${format.toUpperCase()}`)
     } finally {
       setExporting(null)
     }
@@ -86,13 +69,15 @@ function CharacterDetail() {
     return <CharacterDetailSkeleton />
   }
 
+  const error = localError || queryError?.message || null
+
   if (error || !character) {
     return (
       <ErrorState
         title="Character not found"
         message={error || 'The requested character could not be loaded.'}
         onRetry={() => {
-          if (error) loadCharacter()
+          if (error) navigate(0)
           else navigate('/')
         }}
       />
@@ -100,7 +85,7 @@ function CharacterDetail() {
   }
 
   const avatarUrl = `/characters/${encodeURIComponent(character.avatar)}`
-  const currentWorldName = worlds.find((w) => w.file_id === selectedWorld)?.name || selectedWorld
+  const currentWorldName = worlds.find((w) => w.file_id === effectiveSelectedWorld)?.name || effectiveSelectedWorld
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -204,9 +189,14 @@ function CharacterDetail() {
 
             <section className="bg-gray-900 rounded-lg p-4 border border-gray-700">
               <h2 className="text-lg font-semibold text-white mb-3">World Info / Lorebook</h2>
+              {localError && (
+                <div className="mb-3 px-3 py-2 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
+                  {localError}
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row gap-3">
                 <select
-                  value={selectedWorld}
+                  value={effectiveSelectedWorld}
                   onChange={(e) => setSelectedWorld(e.target.value)}
                   className="flex-1 bg-gray-800 text-white rounded-lg px-3 py-2 border border-gray-700 focus:border-blue-500 focus:outline-none"
                 >
@@ -219,13 +209,13 @@ function CharacterDetail() {
                 </select>
                 <button
                   onClick={handleSaveWorld}
-                  disabled={savingWorld}
+                  disabled={associateWorldMutation.isPending}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
                 >
-                  {savingWorld ? 'Saving...' : 'Save'}
+                  {associateWorldMutation.isPending ? 'Saving...' : 'Save'}
                 </button>
               </div>
-              {selectedWorld && (
+              {effectiveSelectedWorld && (
                 <p className="text-sm text-gray-500 mt-2">
                   Associated with <span className="text-blue-400">{currentWorldName}</span>
                 </p>

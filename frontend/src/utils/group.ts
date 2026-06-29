@@ -1,5 +1,7 @@
 import { apiPost } from '../api/client'
-import type { Character, ChatMessage, ChatMetadata, Group } from '../types'
+import type { ChatMessage, ChatMetadata } from '../api/types'
+import type { Character } from '../features/characters/types'
+import type { Group } from '../types/group'
 import { generateUUID } from './chat'
 
 export type GroupChatLine = ChatMetadata | ChatMessage
