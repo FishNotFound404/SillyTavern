@@ -88,3 +88,10 @@ export interface ChatMetadata {
   user_name: string
   character_name: string
 }
+
+export interface ChatFile {
+  file_name: string
+  file_id: string
+}
+
+export type ChatLine = ChatMetadata | ChatMessage

@@ -5,6 +5,42 @@ export async function fetchCharacterForEdit(avatar: string): Promise<Character> 
   return apiPost<Character>('/api/characters/get', { avatar_url: decodeURIComponent(avatar) })
 }
 
+export function characterToDraft(character: Record<string, unknown>): CharacterDraft {
+  const data = (character.data as Record<string, unknown> | undefined) || {}
+
+  return {
+    name: String(character.name || data.name || ''),
+    description: String(character.description || data.description || ''),
+    personality: String(character.personality || data.personality || ''),
+    scenario: String(character.scenario || data.scenario || ''),
+    firstMes: String(character.first_mes || data.first_mes || ''),
+    mesExample: String(character.mes_example || data.mes_example || ''),
+    creatorNotes: String(character.creator_notes || data.creator_notes || character.creatorcomment || ''),
+    systemPrompt: String(character.system_prompt || data.system_prompt || ''),
+    postHistoryInstructions: String(
+      character.post_history_instructions || data.post_history_instructions || '',
+    ),
+    creator: String(character.creator || data.creator || ''),
+    characterVersion: String(character.character_version || data.character_version || ''),
+    tags: Array.isArray(character.tags)
+      ? character.tags.map(String)
+      : Array.isArray(data.tags)
+        ? (data.tags as unknown[]).map(String)
+        : [],
+    talkativeness:
+      typeof character.talkativeness === 'number'
+        ? character.talkativeness
+        : typeof data.talkativeness === 'number'
+          ? data.talkativeness
+          : 0.5,
+    avatarFile: null,
+    avatarUrl: typeof character.avatar === 'string' ? character.avatar : undefined,
+    jsonData: typeof character.json_data === 'string' ? character.json_data : undefined,
+    chat: typeof character.chat === 'string' ? character.chat : undefined,
+    createDate: typeof character.create_date === 'string' ? character.create_date : undefined,
+  }
+}
+
 function appendIfPresent(form: FormData, key: string, value: string | number | undefined) {
   if (value !== undefined && value !== '') {
     form.append(key, String(value))

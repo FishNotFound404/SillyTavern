@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiPost } from '../api/client'
 import { CharacterDetailSkeleton, ErrorState } from '../components/ui'
@@ -17,7 +17,7 @@ function CharacterDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadCharacter = () => {
+  const loadCharacter = useCallback(() => {
     if (!avatar) {
       setError('No character selected')
       setLoading(false)
@@ -41,11 +41,11 @@ function CharacterDetail() {
         setError(err.message)
         setLoading(false)
       })
-  }
+  }, [avatar])
 
   useEffect(() => {
     loadCharacter()
-  }, [avatar])
+  }, [loadCharacter])
 
   const handleSaveWorld = async () => {
     if (!character) return
