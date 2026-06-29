@@ -127,6 +127,7 @@ function Characters() {
         isOpen={importOpen}
         onClose={() => setImportOpen(false)}
         onImported={(avatar) => {
+          loadCharacters()
           const avatarFile = avatar.endsWith('.png') ? avatar : `${avatar}.png`
           navigate(`/character/${encodeURIComponent(avatarFile)}`)
         }}

@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
 import { apiPostForm } from '../api/client'
+import { importCharacterFromUrl } from '../utils/character'
+import { TextField } from './form/TextField'
 
 interface CharacterImportModalProps {
   isOpen: boolean
@@ -16,6 +18,8 @@ const SUPPORTED_EXTENSIONS: Record<string, string> = {
   byaf: 'byaf',
 }
 
+type ImportSource = 'file' | 'url'
+
 function detectFileType(fileName: string): string | null {
   const ext = fileName.split('.').pop()?.toLowerCase() || ''
   return SUPPORTED_EXTENSIONS[ext] || null
@@ -23,11 +27,20 @@ function detectFileType(fileName: string): string | null {
 
 export default function CharacterImportModal({ isOpen, onClose, onImported }: CharacterImportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [source, setSource] = useState<ImportSource>('file')
   const [file, setFile] = useState<File | null>(null)
+  const [url, setUrl] = useState('')
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   if (!isOpen) return null
+
+  const resetState = () => {
+    setFile(null)
+    setUrl('')
+    setError(null)
+    setUploading(false)
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] || null
@@ -35,7 +48,7 @@ export default function CharacterImportModal({ isOpen, onClose, onImported }: Ch
     setError(null)
   }
 
-  const handleUpload = async () => {
+  const handleFileUpload = async () => {
     if (!file) return
 
     const fileType = detectFileType(file.name)
@@ -59,7 +72,28 @@ export default function CharacterImportModal({ isOpen, onClose, onImported }: Ch
       }
 
       onImported(result.file_name)
-      setFile(null)
+      resetState()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleUrlUpload = async () => {
+    const trimmed = url.trim()
+    if (!trimmed) {
+      setError('Please enter a character URL or UUID.')
+      return
+    }
+
+    setUploading(true)
+    setError(null)
+
+    try {
+      const fileName = await importCharacterFromUrl(trimmed)
+      onImported(fileName)
+      resetState()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed')
     } finally {
@@ -69,40 +103,87 @@ export default function CharacterImportModal({ isOpen, onClose, onImported }: Ch
 
   const handleClose = () => {
     if (uploading) return
-    setFile(null)
-    setError(null)
+    resetState()
     onClose()
   }
+
+  const tabClass = (active: boolean) =>
+    `flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+      active
+        ? 'bg-blue-600 text-white'
+        : 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'
+    }`
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-md bg-gray-800 rounded-xl border border-gray-700 p-6 shadow-xl">
         <h2 className="text-xl font-bold text-white mb-4">Import Character</h2>
 
-        <p className="text-sm text-gray-400 mb-4">
-          Import an existing character card. Supported formats: PNG, JSON, YAML, CHARX, BYAF.
-        </p>
+        <div className="flex gap-2 mb-6">
+          <button
+            type="button"
+            onClick={() => {
+              setSource('file')
+              setError(null)
+            }}
+            className={tabClass(source === 'file')}
+          >
+            File
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSource('url')
+              setError(null)
+            }}
+            className={tabClass(source === 'url')}
+          >
+            URL / UUID
+          </button>
+        </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".png,.json,.yaml,.yml,.charx,.byaf"
-          onChange={handleFileChange}
-          className="hidden"
-        />
+        {source === 'file' ? (
+          <>
+            <p className="text-sm text-gray-400 mb-4">
+              Import an existing character card. Supported formats: PNG, JSON, YAML, CHARX, BYAF.
+            </p>
 
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
-        >
-          {file ? 'Choose a different file' : 'Choose file'}
-        </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".png,.json,.yaml,.yml,.charx,.byaf"
+              onChange={handleFileChange}
+              className="hidden"
+            />
 
-        {file && (
-          <div className="mt-4 text-sm text-gray-300">
-            Selected: <span className="text-white font-medium">{file.name}</span>
-          </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="w-full px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium disabled:opacity-50"
+            >
+              {file ? 'Choose a different file' : 'Choose file'}
+            </button>
+
+            {file && (
+              <div className="mt-4 text-sm text-gray-300">
+                Selected: <span className="text-white font-medium">{file.name}</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-gray-400 mb-4">
+              Import a character from a supported URL or UUID. Lorebook URLs are not supported here.
+            </p>
+
+            <TextField
+              label="Character URL or UUID"
+              value={url}
+              onChange={setUrl}
+              placeholder="https://chub.ai/characters/..., pygmalion UUID, etc."
+            />
+          </>
         )}
 
         {error && (
@@ -122,8 +203,8 @@ export default function CharacterImportModal({ isOpen, onClose, onImported }: Ch
           </button>
           <button
             type="button"
-            onClick={handleUpload}
-            disabled={!file || uploading}
+            onClick={source === 'file' ? handleFileUpload : handleUrlUpload}
+            disabled={uploading || (source === 'file' ? !file : !url.trim())}
             className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
           >
             {uploading ? 'Importing...' : 'Import'}

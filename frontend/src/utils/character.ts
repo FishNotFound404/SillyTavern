@@ -1,4 +1,5 @@
 import { apiPost, apiPostForm, getCsrfToken, initCsrfToken } from '../api/client'
+import { isValidUrl } from './url'
 import type { Character, CharacterDraft } from '../types'
 
 export async function fetchCharacterForEdit(avatar: string): Promise<Character> {
@@ -126,4 +127,78 @@ export async function exportCharacter(avatar: string, format: 'png' | 'json'): P
   }
 
   return res.blob()
+}
+
+export async function importCharacterFromUrl(url: string, signal?: AbortSignal): Promise<string> {
+  const endpoint = isValidUrl(url) ? '/api/content/importURL' : '/api/content/importUUID'
+
+  await initCsrfToken()
+  const token = getCsrfToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (token) {
+    headers['X-CSRF-Token'] = token
+  }
+
+  const downloadRes = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ url }),
+    signal,
+  })
+
+  if (!downloadRes.ok) {
+    const text = await downloadRes.text().catch(() => '')
+    throw new Error(`Download failed: HTTP ${downloadRes.status} ${text}`)
+  }
+
+  const contentType = downloadRes.headers.get('X-Custom-Content-Type')
+  if (contentType !== 'character') {
+    throw new Error(
+      contentType === 'lorebook'
+        ? 'URL points to a lorebook, not a character.'
+        : 'Unknown content type returned.',
+    )
+  }
+
+  const blob = await downloadRes.blob()
+  const fileName = parseContentDispositionFilename(
+    downloadRes.headers.get('Content-Disposition') || '',
+  )
+  const fileType = fileName.split('.').pop()?.toLowerCase() || 'png'
+  const file = new File([blob], fileName, { type: blob.type || 'image/png' })
+
+  const formData = new FormData()
+  formData.append('avatar', file)
+  formData.append('file_type', fileType)
+
+  const result = await apiPostForm<{ file_name?: string; error?: boolean }>('/api/characters/import', formData, signal)
+  if (result?.error || !result?.file_name) {
+    throw new Error('Import failed. The downloaded file may be corrupted or unsupported.')
+  }
+  return result.file_name
+}
+
+function parseContentDispositionFilename(header: string): string {
+  const encodedMatch = header.match(/filename\*=(?:UTF-8|utf-8)''([^;]+)/)
+  if (encodedMatch) {
+    try {
+      return decodeURIComponent(encodedMatch[1])
+    } catch {
+      return encodedMatch[1]
+    }
+  }
+
+  const quotedMatch = header.match(/filename="([^"]*)"/)
+  if (quotedMatch) {
+    return quotedMatch[1]
+  }
+
+  const unquotedMatch = header.match(/filename=([^;]+)/)
+  if (unquotedMatch) {
+    return unquotedMatch[1].trim()
+  }
+
+  return 'imported-character.png'
 }
