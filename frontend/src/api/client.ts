@@ -1,6 +1,22 @@
 let csrfToken: string | null = null
 let csrfPromise: Promise<void> | null = null
 
+export class ApiError extends Error {
+  status: number
+  response?: Response
+
+  constructor(
+    status: number,
+    message: string,
+    response?: Response,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.response = response
+  }
+}
+
 export function getCsrfToken(): string | null {
   return csrfToken
 }
@@ -27,60 +43,19 @@ export async function initCsrfToken(): Promise<void> {
   return csrfPromise
 }
 
-export async function apiGet<T>(url: string): Promise<T> {
-  const res = await fetch(url)
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`)
-  }
-  return res.json()
-}
-
-export async function apiPost<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
+async function ensureCsrf(headers: Record<string, string>): Promise<void> {
   await initCsrfToken()
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-
   if (csrfToken) {
     headers['X-CSRF-Token'] = csrfToken
   }
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    signal,
-  })
-
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`)
-  }
-
-  return res.json()
 }
 
-export async function apiPostForm<T>(url: string, formData: FormData, signal?: AbortSignal): Promise<T> {
-  await initCsrfToken()
+async function errorFromResponse(res: Response): Promise<ApiError> {
+  const text = await res.text().catch(() => '')
+  return new ApiError(res.status, `HTTP ${res.status}: ${text}`, res)
+}
 
-  const headers: Record<string, string> = {}
-
-  if (csrfToken) {
-    headers['X-CSRF-Token'] = csrfToken
-  }
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: formData,
-    signal,
-  })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`HTTP ${res.status}: ${text}`)
-  }
-
+async function parseResponse<T>(res: Response): Promise<T> {
   const contentType = res.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
     return res.json() as Promise<T>
@@ -93,4 +68,50 @@ export async function apiPostForm<T>(url: string, formData: FormData, signal?: A
   } catch {
     return text as T
   }
+}
+
+export async function apiGet<T>(url: string): Promise<T> {
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw await errorFromResponse(res)
+  }
+  return res.json() as Promise<T>
+}
+
+export async function apiPost<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  await ensureCsrf(headers)
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal,
+  })
+
+  if (!res.ok) {
+    throw await errorFromResponse(res)
+  }
+
+  return parseResponse<T>(res)
+}
+
+export async function apiPostForm<T>(url: string, formData: FormData, signal?: AbortSignal): Promise<T> {
+  const headers: Record<string, string> = {}
+  await ensureCsrf(headers)
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData,
+    signal,
+  })
+
+  if (!res.ok) {
+    throw await errorFromResponse(res)
+  }
+
+  return parseResponse<T>(res)
 }
