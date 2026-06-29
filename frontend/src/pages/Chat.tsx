@@ -115,7 +115,7 @@ function ChatMessageItem({
           />
         )}
         <div
-          className={`relative max-w-[80%] rounded-2xl px-5 py-3 ${
+          className={`relative max-w-[92%] sm:max-w-[85%] md:max-w-[80%] rounded-2xl px-3 py-2 sm:px-5 sm:py-3 ${
             message.is_user
               ? 'bg-blue-600 text-white rounded-br-md'
               : 'bg-gray-800 text-gray-100 rounded-bl-md'
@@ -176,9 +176,11 @@ function ChatMessageItem({
         query={query}
       >
         <div
-          className={`absolute top-0 ${
-            message.is_user ? 'left-0 -translate-x-full pl-2' : 'right-0 translate-x-full pr-2'
-          } opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1`}
+          className={`absolute top-1 ${
+            message.is_user
+              ? 'left-1 md:left-0 md:-translate-x-full md:pl-2'
+              : 'right-1 md:right-0 md:translate-x-full md:pr-2'
+          } flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-gray-900/80 md:bg-transparent rounded p-1 md:p-0`}
         >
           {message.is_user && (
             <button
@@ -740,7 +742,7 @@ function Chat() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 h-[calc(100vh-4rem)] flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-800">
+      <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between mb-4 pb-4 border-b border-gray-800">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/')}
@@ -770,7 +772,7 @@ function Chat() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search messages..."
-              className="bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none w-32"
+              className="bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none w-full sm:w-40"
             />
             {matchIndices.length > 0 && (
               <span className="text-xs text-gray-400">
@@ -825,7 +827,7 @@ function Chat() {
                 {activePersonaName.charAt(0).toUpperCase()}
               </span>
             )}
-            <span>{activePersonaName}</span>
+            <span className="hidden sm:inline">{activePersonaName}</span>
           </button>
           <button
             onClick={handleNewChat}
@@ -984,17 +986,25 @@ function Chat() {
           {generating ? (
             <button
               onClick={handleStop}
-              className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold"
+              className="px-4 sm:px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold"
             >
-              Stop
+              <span className="hidden sm:inline">Stop</span>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+              </svg>
             </button>
           ) : (
             <button
               onClick={handleSend}
               disabled={!input.trim()}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+              aria-label="Send"
+              className="px-4 sm:px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
             >
-              Send
+              <span className="hidden sm:inline">Send</span>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+              </svg>
             </button>
           )}
         </div>

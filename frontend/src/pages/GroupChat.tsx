@@ -93,6 +93,7 @@ export default function GroupChat() {
   const [connection, setConnection] = useState(DEFAULT_CONNECTION)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -299,17 +300,28 @@ export default function GroupChat() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-gray-950">
+    <div className="h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-gray-950 relative">
       {/* Members sidebar */}
-      <aside className="w-full md:w-64 bg-gray-900 border-r border-gray-800 p-4 flex-shrink-0 overflow-y-auto">
+      <aside className={`${sidebarOpen ? 'block' : 'hidden md:block'} w-full md:w-64 bg-gray-900 border-r border-gray-800 p-4 flex-shrink-0 overflow-y-auto md:static absolute inset-x-0 top-0 bottom-0 z-20`}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">Members</h2>
-          <button
-            onClick={() => navigate('/groups')}
-            className="text-xs text-gray-400 hover:text-white"
-          >
-            Back
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close members"
+              className="md:hidden p-1 text-gray-300 hover:text-white"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <button
+              onClick={() => navigate('/groups')}
+              className="text-xs text-gray-400 hover:text-white"
+            >
+              Back
+            </button>
+          </div>
         </div>
         <div className="space-y-2">
           {members.map((member) => (
@@ -343,8 +355,18 @@ export default function GroupChat() {
 
       {/* Chat area */}
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between gap-3">
+        <header className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setSidebarOpen((prev) => !prev)}
+              className="md:hidden p-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg shrink-0"
+              aria-label="Toggle members"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 13.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 14.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 1.694 3 6s4.03 8.25 9 8.25zm0 0c-2.916 0-5.646.586-8.004 1.582a.75.75 0 00-.496.741v1.69c0 .966.784 1.75 1.75 1.75h13.5a1.75 1.75 0 001.75-1.75v-1.69a.75.75 0 00-.496-.741A18.088 18.088 0 0112 14.25z" />
+              </svg>
+            </button>
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
               G
             </div>
@@ -367,7 +389,7 @@ export default function GroupChat() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search..."
-              className="bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none w-24"
+              className="bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none w-full sm:w-24"
             />
             {matchIndices.length > 0 && (
               <span className="text-xs text-gray-400">
@@ -465,9 +487,13 @@ export default function GroupChat() {
             <button
               onClick={handleSend}
               disabled={generating || !input.trim()}
-              className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-semibold"
+              aria-label="Send"
+              className="px-4 sm:px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-semibold"
             >
-              {generating ? '...' : 'Send'}
+              <span className="hidden sm:inline">{generating ? '...' : 'Send'}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+              </svg>
             </button>
           </div>
         </div>

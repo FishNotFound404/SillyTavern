@@ -52,16 +52,16 @@ export function ChatMessageBubble({
   const displayText = stripThinkTags(message.mes)
 
   return (
-    <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex gap-2 sm:gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
       {avatarUrl && (
         <img
           src={avatarUrl}
           alt={message.name}
-          className="w-8 h-8 rounded-full object-cover self-end mb-1"
+          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover self-end mb-1"
         />
       )}
       <div
-        className={`relative max-w-[80%] rounded-2xl px-5 py-3 ${
+        className={`relative max-w-[92%] sm:max-w-[85%] md:max-w-[80%] rounded-2xl px-3 py-2 sm:px-5 sm:py-3 ${
           isUser
             ? 'bg-blue-600 text-white rounded-br-md'
             : 'bg-gray-800 text-gray-100 rounded-bl-md'
@@ -69,7 +69,7 @@ export function ChatMessageBubble({
       >
         <div className="text-xs opacity-75 mb-1">{message.name}</div>
         {children}
-        <div className="whitespace-pre-wrap leading-relaxed">
+        <div className="whitespace-pre-wrap leading-relaxed break-words">
           {displayText ? (
             <HighlightedText text={displayText} query={query} />
           ) : (

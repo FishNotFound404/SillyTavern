@@ -3,7 +3,7 @@
 from playwright.sync_api import sync_playwright
 import sys
 
-BASE_URL = 'http://localhost:4173'
+BASE_URL = 'http://localhost:5173'
 OUT_DIR = 'docs/images'
 
 
