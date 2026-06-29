@@ -32,12 +32,46 @@ function getPresetSettingsByAPI(apiId, directories) {
             return { folder: directories.sysprompt, extension: '.json' };
         case 'reasoning':
             return { folder: directories.reasoning, extension: '.json' };
+        case 'generation':
+            return { folder: directories.generationPresets, extension: '.json' };
         default:
             return { folder: null, extension: null };
     }
 }
 
+function listPresets(folder) {
+    if (!folder || !fs.existsSync(folder)) {
+        return { names: [], presets: [] };
+    }
+
+    const names = [];
+    const presets = [];
+
+    for (const item of fs.readdirSync(folder).sort()) {
+        if (path.parse(item).ext !== '.json') continue;
+        try {
+            const file = fs.readFileSync(path.join(folder, item), 'utf8');
+            presets.push(JSON.parse(file));
+            names.push(item.replace(/\.json$/, ''));
+        } catch {
+            console.warn(`${item} is not a valid JSON preset`);
+        }
+    }
+
+    return { names, presets };
+}
+
 export const router = express.Router();
+
+router.post('/list', function (request, response) {
+    const settings = getPresetSettingsByAPI(request.body.apiId, request.user.directories);
+    if (!settings.folder) {
+        return response.sendStatus(400);
+    }
+
+    const { names, presets } = listPresets(settings.folder);
+    return response.send({ names, presets });
+});
 
 router.post('/save', function (request, response) {
     const name = sanitize(request.body.name);
@@ -50,6 +84,10 @@ router.post('/save', function (request, response) {
 
     if (!settings.folder) {
         return response.sendStatus(400);
+    }
+
+    if (!fs.existsSync(settings.folder)) {
+        fs.mkdirSync(settings.folder, { recursive: true });
     }
 
     const fullpath = path.join(settings.folder, filename);
@@ -74,7 +112,7 @@ router.post('/delete', function (request, response) {
 
     if (fs.existsSync(fullpath)) {
         fs.unlinkSync(fullpath);
-        return response.sendStatus(200);
+        return response.send({ success: true });
     } else {
         return response.sendStatus(404);
     }

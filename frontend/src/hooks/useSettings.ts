@@ -11,6 +11,8 @@ import {
   writeConnectionSettings,
 } from '../utils/connection'
 import { getApiKeyLabel, isSecretConfigured } from '../utils/settings'
+import { deletePreset, fetchPresets, savePreset } from '../utils/presets'
+import type { GenerationPreset } from '../types/preset'
 
 interface SettingsResponse {
   settings: string
@@ -36,6 +38,15 @@ export interface UseSettingsResult {
   activeSecretKey: string
   isModelConfigurable: boolean
 
+  // Presets
+  presetNames: string[]
+  presets: GenerationPreset[]
+  selectedPreset: string
+  presetNameInput: string
+  presetLoading: boolean
+  presetMessage: string | null
+  presetError: string | null
+
   // Handlers
   handleProviderChange: (provider: ChatProvider) => void
   handleMinimaxEndpointChange: (endpoint: MiniMaxEndpoint) => void
@@ -45,6 +56,11 @@ export interface UseSettingsResult {
   handleSecretInputChange: (key: string, value: string) => void
   handleSaveKey: (key: string) => Promise<void>
   handleDeleteKey: (key: string) => Promise<void>
+  setSelectedPreset: (name: string) => void
+  setPresetNameInput: (name: string) => void
+  handleApplyPreset: () => void
+  handleSavePreset: () => Promise<void>
+  handleDeletePreset: () => Promise<void>
 }
 
 export function useSettings(): UseSettingsResult {
@@ -61,6 +77,13 @@ export function useSettings(): UseSettingsResult {
   const [loadingModels, setLoadingModels] = useState(false)
   const [modelError, setModelError] = useState<string | null>(null)
   const [customMode, setCustomMode] = useState(false)
+  const [presetNames, setPresetNames] = useState<string[]>([])
+  const [presets, setPresets] = useState<GenerationPreset[]>([])
+  const [selectedPreset, setSelectedPreset] = useState('')
+  const [presetNameInput, setPresetNameInput] = useState('')
+  const [presetLoading, setPresetLoading] = useState(false)
+  const [presetMessage, setPresetMessage] = useState<string | null>(null)
+  const [presetError, setPresetError] = useState<string | null>(null)
 
   // Initial load: backend status, connection settings, and secrets.
   useEffect(() => {
@@ -81,6 +104,20 @@ export function useSettings(): UseSettingsResult {
       }
     }
     load()
+  }, [])
+
+  // Load generation presets.
+  useEffect(() => {
+    async function loadPresets() {
+      try {
+        const data = await fetchPresets()
+        setPresetNames(data.names)
+        setPresets(data.presets)
+      } catch (err) {
+        console.warn('Failed to load generation presets:', err)
+      }
+    }
+    loadPresets()
   }, [])
 
   const activeSecretKey = getProviderConfig(connection.provider).secretKey
@@ -161,6 +198,79 @@ export function useSettings(): UseSettingsResult {
     }
   }, [connection])
 
+  const refreshPresets = useCallback(async () => {
+    const data = await fetchPresets()
+    setPresetNames(data.names)
+    setPresets(data.presets)
+  }, [])
+
+  const handleApplyPreset = useCallback(() => {
+    const preset = presets.find((p) => p.name === selectedPreset)
+    if (!preset) {
+      setPresetError('Select a preset to apply.')
+      return
+    }
+    setConnection((prev) => ({
+      ...prev,
+      provider: preset.provider,
+      model: preset.model,
+      minimaxEndpoint: (preset.minimaxEndpoint as MiniMaxEndpoint | undefined) || prev.minimaxEndpoint,
+    }))
+    setPresetError(null)
+    setPresetMessage('Preset applied. Save connection to persist.')
+  }, [presets, selectedPreset])
+
+  const handleSavePreset = useCallback(async () => {
+    const name = presetNameInput.trim()
+    if (!name) {
+      setPresetError('Enter a name for the preset.')
+      return
+    }
+
+    setPresetLoading(true)
+    setPresetError(null)
+    setPresetMessage(null)
+    try {
+      await savePreset(name, {
+        provider: connection.provider,
+        model: connection.model,
+        minimaxEndpoint: connection.minimaxEndpoint,
+      })
+      await refreshPresets()
+      setSelectedPreset(name)
+      setPresetNameInput('')
+      setPresetMessage(`Preset "${name}" saved.`)
+    } catch (err) {
+      setPresetError(err instanceof Error ? err.message : 'Failed to save preset')
+    } finally {
+      setPresetLoading(false)
+    }
+  }, [connection, presetNameInput, refreshPresets])
+
+  const handleDeletePreset = useCallback(async () => {
+    if (!selectedPreset) {
+      setPresetError('Select a preset to delete.')
+      return
+    }
+    if (!window.confirm(`Delete preset "${selectedPreset}"?`)) {
+      return
+    }
+
+    setPresetLoading(true)
+    setPresetError(null)
+    setPresetMessage(null)
+    try {
+      await deletePreset(selectedPreset)
+      await refreshPresets()
+      setSelectedPreset('')
+      setPresetMessage(`Preset "${selectedPreset}" deleted.`)
+    } catch (err) {
+      setPresetError(err instanceof Error ? err.message : 'Failed to delete preset')
+    } finally {
+      setPresetLoading(false)
+    }
+  }, [selectedPreset, refreshPresets])
+
   const handleSecretInputChange = useCallback((key: string, value: string) => {
     setSecretInputs((prev) => ({ ...prev, [key]: value }))
   }, [])
@@ -218,6 +328,13 @@ export function useSettings(): UseSettingsResult {
     customMode,
     activeSecretKey,
     isModelConfigurable,
+    presetNames,
+    presets,
+    selectedPreset,
+    presetNameInput,
+    presetLoading,
+    presetMessage,
+    presetError,
     handleProviderChange,
     handleMinimaxEndpointChange,
     handleModelChange,
@@ -226,5 +343,10 @@ export function useSettings(): UseSettingsResult {
     handleSecretInputChange,
     handleSaveKey,
     handleDeleteKey,
+    setSelectedPreset,
+    setPresetNameInput,
+    handleApplyPreset,
+    handleSavePreset,
+    handleDeletePreset,
   }
 }

@@ -2,6 +2,7 @@ import { LoadingState, ErrorState } from '../components/ui'
 import { ConnectionStatusSection } from '../components/ConnectionStatusSection'
 import { ConnectionSection } from '../components/ConnectionSection'
 import { ApiKeysSection } from '../components/ApiKeysSection'
+import { GenerationPresetsSection } from '../components/GenerationPresetsSection'
 import { AboutSection } from '../components/AboutSection'
 import { useSettings } from '../hooks/useSettings'
 
@@ -22,6 +23,12 @@ function Settings() {
     customMode,
     activeSecretKey,
     isModelConfigurable,
+    presetNames,
+    selectedPreset,
+    presetNameInput,
+    presetLoading,
+    presetMessage,
+    presetError,
     handleProviderChange,
     handleMinimaxEndpointChange,
     handleModelChange,
@@ -30,6 +37,11 @@ function Settings() {
     handleSecretInputChange,
     handleSaveKey,
     handleDeleteKey,
+    setSelectedPreset,
+    setPresetNameInput,
+    handleApplyPreset,
+    handleSavePreset,
+    handleDeletePreset,
   } = useSettings()
 
   if (loading) {
@@ -66,6 +78,20 @@ function Settings() {
           onModelChange={handleModelChange}
           onCustomModeChange={handleCustomModeChange}
           onSaveConnection={handleSaveConnection}
+        />
+
+        <GenerationPresetsSection
+          presetNames={presetNames}
+          selectedPreset={selectedPreset}
+          presetNameInput={presetNameInput}
+          presetLoading={presetLoading}
+          presetMessage={presetMessage}
+          presetError={presetError}
+          onSelectedPresetChange={setSelectedPreset}
+          onPresetNameInputChange={setPresetNameInput}
+          onApply={handleApplyPreset}
+          onSave={handleSavePreset}
+          onDelete={handleDeletePreset}
         />
 
         <ApiKeysSection
