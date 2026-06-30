@@ -1,5 +1,11 @@
 export interface Persona {
+  id: string
   name: string
-  avatar_url?: string
-  description?: string
+  description: string
+  avatar: string // filename in User Avatars/
+}
+
+export interface PersonaState {
+  personas: Persona[]
+  defaultId: string | null
 }

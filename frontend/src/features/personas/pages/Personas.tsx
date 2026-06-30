@@ -1,22 +1,22 @@
 import { useEffect, useState, useRef } from 'react'
-import { apiPost } from '../api/client'
-import { LoadingState, ErrorState } from '../components/ui'
-import type { Persona, PersonaState } from '../types/persona'
+import { LoadingState, ErrorState } from '../../../components/ui'
+import type { Persona, PersonaState } from '../types'
 import {
-  readPersonaState,
-  writePersonaState,
-  uploadPersonaAvatar,
   deletePersonaAvatar,
+  fetchPersonaBundle,
+  parsePersonaBundle,
+  savePersonaBundle,
+  uploadPersonaAvatar,
+  type SettingsBundleResponse,
+} from '../api'
+import {
   generatePersonaId,
   getPersonaAvatarUrl,
-} from '../utils/persona'
-
-interface SettingsResponse {
-  settings: string
-}
+} from '../utils'
 
 function Personas() {
   const [state, setState] = useState<PersonaState>({ personas: [], defaultId: null })
+  const [bundle, setBundle] = useState<SettingsBundleResponse | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -27,9 +27,9 @@ function Personas() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadSettings = async () => {
-    const data = await apiPost<SettingsResponse>('/api/settings/get', {})
-    const parsed = data?.settings ? (JSON.parse(data.settings) as Record<string, unknown>) : {}
-    setState(readPersonaState(parsed))
+    const data = await fetchPersonaBundle()
+    setBundle(data)
+    setState(parsePersonaBundle(data))
   }
 
   useEffect(() => {
@@ -43,9 +43,8 @@ function Personas() {
     setSaveMessage(null)
     setError(null)
     try {
-      const data = await apiPost<SettingsResponse>('/api/settings/get', {})
-      const parsed = data?.settings ? (JSON.parse(data.settings) as Record<string, unknown>) : {}
-      await apiPost('/api/settings/save', writePersonaState(parsed, nextState))
+      const nextBundle = await savePersonaBundle({ currentBundle: bundle, state: nextState })
+      setBundle(nextBundle)
       setState(nextState)
       setSaveMessage('Personas saved')
     } catch (err) {

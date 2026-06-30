@@ -5,7 +5,7 @@ import type { ChatMessage } from '../api/types'
 import type { Character } from '../features/characters/types'
 import type { ConnectionSettings } from '../types/connection'
 import type { Group } from '../types/group'
-import type { PersonaState } from '../types/persona'
+import type { PersonaState } from '../features/personas/types'
 import { stripThinkTags } from '../utils/chat'
 import { isChatMessage } from '../utils/chatMessageActions'
 import {
@@ -25,7 +25,7 @@ import {
   updateGroup,
   type GroupChatLine,
 } from '../utils/group'
-import { getDefaultPersona, getPersonaAvatarUrl, readPersonaState } from '../utils/persona'
+import { getDefaultPersona, getPersonaAvatarUrl, readPersonaState } from '../features/personas/utils'
 import { streamCompletion } from '../utils/stream'
 import { generateUUID } from '../utils/chat'
 
