@@ -1,4 +1,4 @@
-import { initCsrfToken } from '../../api/client'
+import { getCsrfToken, initCsrfToken } from '../../api/client'
 import type { Character } from '../../features/characters/types'
 import type { ChatLine, ChatMessage, ChatMetadata } from './types'
 import { extractStreamDelta } from '../settings/utils/connection'
@@ -126,13 +126,7 @@ export async function* streamCompletion(
   signal?: AbortSignal,
 ): AsyncGenerator<string> {
   await initCsrfToken()
-
-  const tokenResponse = await fetch('/csrf-token')
-  let csrfToken: string | undefined
-  if (tokenResponse.ok) {
-    const tokenData = (await tokenResponse.json()) as { token?: string }
-    csrfToken = tokenData.token
-  }
+  const csrfToken = getCsrfToken()
 
   const response = await fetch(endpoint, {
     method: 'POST',
