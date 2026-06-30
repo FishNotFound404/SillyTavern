@@ -5,7 +5,7 @@ import { apiPost } from '../api/client'
 import type { Character } from '../features/characters/types'
 import type { ChatFile, ChatLine, ChatMessage } from '../types'
 import type { ConnectionSettings } from '../types/connection'
-import type { PersonaState } from '../types/persona'
+import type { PersonaState } from '../features/personas/types'
 import {
   appendSwipe,
   applyMessageEdit,
@@ -21,7 +21,7 @@ import {
   DEFAULT_CONNECTION,
   readConnectionSettings,
 } from '../utils/connection'
-import { getDefaultPersona, getPersonaThumbnailUrl, readPersonaState } from '../utils/persona'
+import { getDefaultPersona, getPersonaThumbnailUrl, readPersonaState } from '../features/personas/utils'
 import { gatherMatchingLore } from '../utils/lorebook'
 import { streamCompletion } from '../utils/stream'
 import {

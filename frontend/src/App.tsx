@@ -9,7 +9,7 @@ import ChatRouter from './pages/ChatRouter'
 import Groups from './pages/Groups'
 import GroupEdit from './pages/GroupEdit'
 import Settings from './features/settings/pages/Settings'
-import Personas from './pages/Personas'
+import Personas from './features/personas/pages/Personas'
 import WorldInfo from './features/world-info/pages/WorldInfo'
 import WorldInfoEdit from './features/world-info/pages/WorldInfoEdit'
 

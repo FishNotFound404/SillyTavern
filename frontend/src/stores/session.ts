@@ -1,10 +1,5 @@
 import { create } from 'zustand'
-
-export interface Persona {
-  name: string
-  avatar_url?: string
-  description?: string
-}
+import type { Persona } from '../features/personas/types'
 
 interface SessionState {
   userPersona: Persona | null

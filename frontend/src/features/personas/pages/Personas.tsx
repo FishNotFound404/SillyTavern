@@ -1,111 +1,89 @@
-import { useEffect, useState, useRef } from 'react'
-import { apiPost } from '../api/client'
-import { LoadingState, ErrorState } from '../components/ui'
-import type { Persona, PersonaState } from '../types/persona'
+import { useRef, useState } from 'react'
+import { LoadingState, ErrorState } from '../../../components/ui'
+import type { Persona, PersonaState } from '../types'
+import { getPersonaAvatarUrl } from '../utils'
 import {
-  readPersonaState,
-  writePersonaState,
-  uploadPersonaAvatar,
-  deletePersonaAvatar,
-  generatePersonaId,
-  getPersonaAvatarUrl,
-} from '../utils/persona'
-
-interface SettingsResponse {
-  settings: string
-}
+  useCreatePersona,
+  useDeletePersonaAvatar,
+  usePersonas,
+  useSavePersonas,
+} from '../api'
 
 function Personas() {
-  const [state, setState] = useState<PersonaState>({ personas: [], defaultId: null })
+  const { data: state, isLoading, error: queryError } = usePersonas()
+  const createPersona = useCreatePersona()
+  const savePersonas = useSavePersonas()
+  const deleteAvatar = useDeletePersonaAvatar()
+
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const loadSettings = async () => {
-    const data = await apiPost<SettingsResponse>('/api/settings/get', {})
-    const parsed = data?.settings ? (JSON.parse(data.settings) as Record<string, unknown>) : {}
-    setState(readPersonaState(parsed))
-  }
-
-  useEffect(() => {
-    loadSettings()
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load personas'))
-      .finally(() => setLoading(false))
-  }, [])
-
-  const persistState = async (nextState: PersonaState) => {
-    setSaving(true)
-    setSaveMessage(null)
-    setError(null)
-    try {
-      const data = await apiPost<SettingsResponse>('/api/settings/get', {})
-      const parsed = data?.settings ? (JSON.parse(data.settings) as Record<string, unknown>) : {}
-      await apiPost('/api/settings/save', writePersonaState(parsed, nextState))
-      setState(nextState)
-      setSaveMessage('Personas saved')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save personas')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const saving = createPersona.isPending || savePersonas.isPending || deleteAvatar.isPending
+  const displayState: PersonaState = state || { personas: [], defaultId: null }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || !file) return
 
+    setSaveMessage(null)
+    setLocalError(null)
+
     try {
-      setSaving(true)
-      setSaveMessage(null)
-      setError(null)
-      const avatar = await uploadPersonaAvatar(file)
-      const newPersona: Persona = {
-        id: generatePersonaId(),
-        name: name.trim(),
-        description: description.trim(),
-        avatar,
-      }
+      const formData = new FormData()
+      formData.append('name', name.trim())
+      formData.append('description', description.trim())
+      formData.append('avatar', file)
+
+      const newPersona = await createPersona.mutateAsync(formData)
       const nextState: PersonaState = {
-        personas: [...state.personas, newPersona],
-        defaultId: state.defaultId || newPersona.id,
+        personas: [...displayState.personas, newPersona],
+        defaultId: displayState.defaultId || newPersona.id,
       }
-      await persistState(nextState)
+      await savePersonas.mutateAsync(nextState)
       setName('')
       setDescription('')
       setFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
+      setSaveMessage('Persona created')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create persona')
-      setSaving(false)
+      setLocalError(err instanceof Error ? err.message : 'Failed to create persona')
     }
   }
 
-  const handleSetDefault = (id: string) => {
-    persistState({ ...state, defaultId: id })
+  const handleSetDefault = async (id: string) => {
+    setLocalError(null)
+    try {
+      await savePersonas.mutateAsync({ ...displayState, defaultId: id })
+      setSaveMessage('Default persona updated')
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Failed to set default persona')
+    }
   }
 
   const handleDelete = async (persona: Persona) => {
     if (!window.confirm(`Delete persona "${persona.name}"?`)) return
+
+    setLocalError(null)
     try {
-      await deletePersonaAvatar(persona.avatar)
-      const nextPersonas = state.personas.filter((p) => p.id !== persona.id)
-      const nextDefaultId = state.defaultId === persona.id
+      await deleteAvatar.mutateAsync(persona.avatar)
+      const nextPersonas = displayState.personas.filter((p) => p.id !== persona.id)
+      const nextDefaultId = displayState.defaultId === persona.id
         ? (nextPersonas[0]?.id || null)
-        : state.defaultId
-      await persistState({ personas: nextPersonas, defaultId: nextDefaultId })
+        : displayState.defaultId
+      await savePersonas.mutateAsync({ personas: nextPersonas, defaultId: nextDefaultId })
+      setSaveMessage('Persona deleted')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete persona')
+      setLocalError(err instanceof Error ? err.message : 'Failed to delete persona')
     }
   }
 
-  if (loading) return <LoadingState message="Loading personas..." />
-  if (error && state.personas.length === 0) {
-    return <ErrorState title="Failed to load personas" message={error} />
+  if (isLoading) return <LoadingState message="Loading personas..." />
+  if (queryError && !state) {
+    return <ErrorState title="Failed to load personas" message={queryError.message} />
   }
 
   return (
@@ -117,9 +95,9 @@ function Personas() {
           {saveMessage}
         </div>
       )}
-      {error && (
+      {localError && (
         <div className="mb-4 px-4 py-2 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
-          {error}
+          {localError}
         </div>
       )}
 
@@ -163,12 +141,12 @@ function Personas() {
 
       <section className="bg-gray-800 rounded-xl p-6 border border-gray-700">
         <h2 className="text-lg font-semibold text-white mb-4">Your Personas</h2>
-        {state.personas.length === 0 ? (
+        {displayState.personas.length === 0 ? (
           <p className="text-gray-400">No personas yet. Create one above.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {state.personas.map((persona) => {
-              const isDefault = state.defaultId === persona.id
+            {displayState.personas.map((persona) => {
+              const isDefault = displayState.defaultId === persona.id
               return (
                 <div
                   key={persona.id}
