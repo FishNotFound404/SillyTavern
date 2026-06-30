@@ -1,60 +1,51 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiPost } from '../api/client'
-import { LoadingState, EmptyState, ErrorState } from '../components/ui'
-import type { WorldInfoSummary } from '../types/worldInfo'
+import { LoadingState, EmptyState, ErrorState } from '../../../components/ui'
+import { useCreateWorldInfo, useDeleteWorldInfo, useWorldInfos } from '../api'
 
 function WorldInfo() {
   const navigate = useNavigate()
-  const [worlds, setWorlds] = useState<WorldInfoSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadWorlds = async () => {
-    try {
-      setLoading(true)
-      const data = await apiPost<WorldInfoSummary[]>('/api/worldinfo/list', {})
-      setWorlds(Array.isArray(data) ? data : [])
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load world info')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadWorlds()
-  }, [])
+  const { data: worlds = [], isLoading, error: queryError, refetch } = useWorldInfos()
+  const createMutation = useCreateWorldInfo()
+  const deleteMutation = useDeleteWorldInfo()
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const handleCreate = async () => {
+    setCreateError(null)
     const name = window.prompt('New world info name:')?.trim()
     if (!name) return
 
     try {
-      await apiPost('/api/worldinfo/edit', {
-        name,
-        data: { name, entries: {} },
-      })
-      await loadWorlds()
+      await createMutation.mutateAsync(name)
       navigate(`/world-info/${encodeURIComponent(name)}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create world info')
+      setCreateError(err instanceof Error ? err.message : 'Failed to create world info')
     }
   }
 
   const handleDelete = async (fileId: string) => {
     if (!window.confirm(`Delete "${fileId}"? This cannot be undone.`)) return
     try {
-      await apiPost('/api/worldinfo/delete', { name: fileId })
-      await loadWorlds()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete world info')
+      await deleteMutation.mutateAsync(fileId)
+    } catch {
     }
   }
 
-  if (loading) return <LoadingState message="Loading world info..." />
-  if (error) return <ErrorState title="Couldn’t load world info" message={error} onRetry={loadWorlds} />
+  if (isLoading) return <LoadingState message="Loading world info..." />
+
+  const errorMessage = queryError?.message || createError || deleteMutation.error?.message || null
+  if (errorMessage) {
+    return (
+      <ErrorState
+        title="Couldn’t load world info"
+        message={errorMessage}
+        onRetry={() => {
+          setCreateError(null)
+          void refetch()
+        }}
+      />
+    )
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -62,9 +53,10 @@ function WorldInfo() {
         <h1 className="text-2xl font-bold text-white">World Info / Lorebooks</h1>
         <button
           onClick={handleCreate}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+          disabled={createMutation.isPending}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
         >
-          New World Info
+          {createMutation.isPending ? 'Creating...' : 'New World Info'}
         </button>
       </div>
 
@@ -96,7 +88,7 @@ function WorldInfo() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleDelete(world.file_id)
+                    void handleDelete(world.file_id)
                   }}
                   className="p-2 text-gray-500 hover:text-red-400 hover:bg-gray-800 rounded-lg"
                   title="Delete"

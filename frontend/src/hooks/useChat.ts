@@ -22,7 +22,7 @@ import {
   readConnectionSettings,
 } from '../utils/connection'
 import { getDefaultPersona, getPersonaThumbnailUrl, readPersonaState } from '../utils/persona'
-import { gatherMatchingLore } from '../utils/lorebook'
+import { gatherMatchingLore } from '../features/world-info/utils'
 import { streamCompletion } from '../utils/stream'
 import {
   buildInitialChatData,

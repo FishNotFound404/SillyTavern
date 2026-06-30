@@ -10,8 +10,8 @@ import Groups from './pages/Groups'
 import GroupEdit from './pages/GroupEdit'
 import Settings from './pages/Settings'
 import Personas from './pages/Personas'
-import WorldInfo from './pages/WorldInfo'
-import WorldInfoEdit from './pages/WorldInfoEdit'
+import WorldInfo from './features/world-info/pages/WorldInfo'
+import WorldInfoEdit from './features/world-info/pages/WorldInfoEdit'
 
 function App() {
   useEffect(() => {
