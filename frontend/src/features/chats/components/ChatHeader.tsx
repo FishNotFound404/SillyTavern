@@ -1,5 +1,5 @@
-import type { ChatFile, ChatLine } from '../api/types'
-import type { Character } from '../features/characters/types'
+import type { ChatFile, ChatLine } from '../../../api/types'
+import type { Character } from '../../characters/types'
 
 interface ChatHeaderProps {
   character: Character | null
@@ -55,7 +55,7 @@ export function ChatHeader({
           onClick={onBack}
           className="text-gray-400 hover:text-white"
         >
-          ← Back
+          ←Back
         </button>
         {character && (
           <div className="flex items-center gap-3">

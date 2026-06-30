@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { apiPost } from '../api/client'
-import type { ChatMessage } from '../api/types'
+import type { ChatLine, ChatMessage } from '../api/types'
 import type { Character } from '../features/characters/types'
 import type { ConnectionSettings } from '../types/connection'
 import type { Group } from '../types/group'
 import type { PersonaState } from '../features/personas/types'
-import { stripThinkTags } from '../utils/chat'
-import { isChatMessage } from '../utils/chatMessageActions'
+import { generateUUID, stripThinkTags } from '../features/chats/utils'
+import { isChatMessage } from '../features/chats/utils/chatMessageActions'
 import {
   buildGenerationRequest,
   DEFAULT_CONNECTION,
   readConnectionSettings,
-} from '../utils/connection'
+} from '../features/settings/utils'
 import {
   buildGroupSystemPrompt,
   createGroupChatMetadata,
@@ -23,11 +23,9 @@ import {
   pickNextSpeaker,
   saveGroupChat,
   updateGroup,
-  type GroupChatLine,
 } from '../utils/group'
 import { getDefaultPersona, getPersonaAvatarUrl, readPersonaState } from '../features/personas/utils'
-import { streamCompletion } from '../utils/stream'
-import { generateUUID } from '../utils/chat'
+import { streamCompletion } from '../features/chats/utils/stream'
 
 export interface UseGroupChatResult {
   // Refs
@@ -36,7 +34,7 @@ export interface UseGroupChatResult {
   // State
   group: Group | null
   members: Character[]
-  chatData: GroupChatLine[]
+  chatData: ChatLine[]
   input: string
   setInput: (value: string) => void
   generating: boolean
@@ -71,7 +69,7 @@ export function useGroupChat(): UseGroupChatResult {
 
   const [group, setGroup] = useState<Group | null>(null)
   const [members, setMembers] = useState<Character[]>([])
-  const [chatData, setChatData] = useState<GroupChatLine[]>([])
+  const [chatData, setChatData] = useState<ChatLine[]>([])
   const [input, setInput] = useState('')
   const [generating, setGenerating] = useState(false)
   const [currentSpeaker, setCurrentSpeaker] = useState<Character | null>(null)
@@ -120,7 +118,7 @@ export function useGroupChat(): UseGroupChatResult {
 
         const chat = await fetchGroupChat(groupData.chat_id)
         if (cancelled) return
-        setChatData(Array.isArray(chat) ? (chat as GroupChatLine[]) : [])
+        setChatData(Array.isArray(chat) ? (chat as ChatLine[]) : [])
       } catch (err) {
         if (cancelled) return
         setError(err instanceof Error ? err.message : 'Failed to load group chat')
@@ -164,7 +162,7 @@ export function useGroupChat(): UseGroupChatResult {
   }, [matchIndices, currentMatchIndex])
 
   const saveMessages = useCallback(
-    async (messages: GroupChatLine[]) => {
+    async (messages: ChatLine[]) => {
       if (!group) return
       try {
         await saveGroupChat(group.chat_id, messages)
@@ -176,7 +174,7 @@ export function useGroupChat(): UseGroupChatResult {
   )
 
   const generateReply = useCallback(
-    async (speaker: Character, workingChat: GroupChatLine[], signal?: AbortSignal) => {
+    async (speaker: Character, workingChat: ChatLine[], signal?: AbortSignal) => {
       const historyMessages = workingChat.filter(isChatMessage)
       const lastMessage = historyMessages[historyMessages.length - 1]
       const needsContinuePrompt = lastMessage && !lastMessage.is_user
@@ -277,7 +275,7 @@ export function useGroupChat(): UseGroupChatResult {
     const updated: Group = { ...group, chat_id: newId, chats: [newId] }
     try {
       await updateGroup(updated)
-      const initial: GroupChatLine[] = [createGroupChatMetadata()]
+      const initial: ChatLine[] = [createGroupChatMetadata()]
       await saveGroupChat(newId, initial)
       setGroup(updated)
       setChatData(initial)
