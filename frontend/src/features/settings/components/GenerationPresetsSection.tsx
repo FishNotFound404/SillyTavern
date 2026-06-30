@@ -1,4 +1,4 @@
-import { TextField } from './form/TextField'
+import { TextField } from '../../../components/form/TextField'
 
 interface GenerationPresetsSectionProps {
   presetNames: string[]

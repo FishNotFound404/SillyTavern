@@ -1,4 +1,4 @@
-import { LoadingState, ErrorState } from '../components/ui'
+import { LoadingState, ErrorState } from '../../../components/ui'
 import { ConnectionStatusSection } from '../components/ConnectionStatusSection'
 import { ConnectionSection } from '../components/ConnectionSection'
 import { ApiKeysSection } from '../components/ApiKeysSection'
