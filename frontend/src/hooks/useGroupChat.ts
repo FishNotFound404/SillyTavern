@@ -6,7 +6,7 @@ import type { ChatMessage } from '../types'
 import type { Group } from '../types/group'
 import type { PersonaState } from '../features/personas/types'
 import type { ConnectionSettings } from '../types/connection'
-import { stripThinkTags } from '../utils/chat'
+import { generateUUID, streamCompletion, stripThinkTags } from '../features/chats/utils'
 import { isChatMessage } from '../utils/chatMessageActions'
 import {
   buildGenerationRequest,
@@ -26,8 +26,6 @@ import {
   type GroupChatLine,
 } from '../utils/group'
 import { getDefaultPersona, getPersonaAvatarUrl, readPersonaState } from '../features/personas/utils'
-import { streamCompletion } from '../utils/stream'
-import { generateUUID } from '../utils/chat'
 
 export interface UseGroupChatResult {
   // Refs

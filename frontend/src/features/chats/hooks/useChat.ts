@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { apiPost } from '../api/client'
-import type { Character } from '../features/characters/types'
+import { useQueryClient } from '@tanstack/react-query'
+import { apiPost } from '../../../api/client'
+import { useCharacter } from '../../characters/api'
+import type { Character } from '../../characters/types'
 import type { ChatFile, ChatLine, ChatMessage } from '../types'
-import type { ConnectionSettings } from '../types/connection'
-import type { PersonaState } from '../features/personas/types'
+import type { ConnectionSettings } from '../../settings/types'
+import type { PersonaState } from '../../personas/types'
 import {
   appendSwipe,
   applyMessageEdit,
@@ -15,21 +17,29 @@ import {
   prepareRegenerateContext,
   setSwipeId,
   updateCurrentSwipe,
-} from '../utils/chatMessageActions'
+} from '../../../utils/chatMessageActions'
 import {
   buildGenerationRequest,
   DEFAULT_CONNECTION,
   readConnectionSettings,
-} from '../utils/connection'
-import { getDefaultPersona, getPersonaThumbnailUrl, readPersonaState } from '../features/personas/utils'
-import { gatherMatchingLore } from '../utils/lorebook'
-import { streamCompletion } from '../utils/stream'
+} from '../../settings/utils/connection'
+import { getDefaultPersona, getPersonaThumbnailUrl, readPersonaState } from '../../personas/utils'
+import { gatherMatchingLore } from '../../../utils/lorebook'
+import { streamCompletion } from '../utils'
 import {
   buildInitialChatData,
   buildSystemPrompt,
   generateChatFileName,
   stripThinkTags,
-} from '../utils/chat'
+} from '../utils'
+import {
+  chatKeys,
+  useCharacterChats,
+  useChat as useChatQuery,
+  useSaveChat,
+  useRenameChat,
+  useDeleteChat,
+} from '../api'
 
 export interface UseChatResult {
   // Refs
@@ -93,15 +103,13 @@ export interface UseChatResult {
 export function useChat(): UseChatResult {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const avatarUrl = searchParams.get('avatar')
   const requestedChat = searchParams.get('chat')
 
-  const [character, setCharacter] = useState<Character | null>(null)
-  const [chatFiles, setChatFiles] = useState<ChatFile[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(requestedChat)
   const [chatData, setChatData] = useState<ChatLine[]>([])
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
@@ -111,9 +119,17 @@ export function useChat(): UseChatResult {
 
   const messagesParentRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const lastSessionIdRef = useRef<string | null>(null)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+
+  const { data: character, isLoading: characterLoading } = useCharacter(avatarUrl || undefined)
+  const { data: chatFiles = [], isLoading: chatFilesLoading } = useCharacterChats(avatarUrl || undefined)
+  const { data: chatSession, isLoading: chatSessionLoading } = useChatQuery(selectedFile || undefined)
+  const { mutateAsync: saveChatAsync } = useSaveChat()
+  const { mutateAsync: renameChatAsync } = useRenameChat()
+  const { mutateAsync: deleteChatAsync } = useDeleteChat()
 
   const messages = chatData.filter(isChatMessage)
 
@@ -134,62 +150,34 @@ export function useChat(): UseChatResult {
     overscan: 5,
   })
 
-  // Redirect to chat list if no character is selected and fetch character details.
+  // Redirect to chat list if no character is selected.
   useEffect(() => {
     if (!avatarUrl) {
       navigate('/chat')
-      return
     }
-
-    apiPost<Character>('/api/characters/get', { avatar_url: avatarUrl })
-      .then((data) => {
-        setCharacter(data)
-      })
-      .catch((err) => setError(err.message))
   }, [avatarUrl, navigate])
 
-  // Fetch available chat files for this character.
+  // Sync selected file from requested chat or the first available file.
   useEffect(() => {
-    if (!avatarUrl) return
-
-    setLoading(true)
-    apiPost<ChatFile[]>('/api/characters/chats', { avatar_url: avatarUrl, simple: true })
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setChatFiles(data)
-          if (data.length > 0) {
-            const match = requestedChat ? data.find((f) => f.file_id === requestedChat) : null
-            setSelectedFile(match ? match.file_id : data[0].file_id)
-          }
-        }
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError(err.message)
-        setLoading(false)
-      })
-  }, [avatarUrl, requestedChat])
-
-  // Load the selected chat file.
-  useEffect(() => {
-    if (!avatarUrl || !selectedFile) {
-      setChatData([])
-      return
+    if (requestedChat) {
+      setSelectedFile(requestedChat)
+    } else if (chatFiles.length > 0 && !selectedFile) {
+      setSelectedFile(chatFiles[0].file_id)
     }
+  }, [requestedChat, chatFiles, selectedFile])
 
-    apiPost<ChatLine[]>('/api/chats/get', {
-      avatar_url: avatarUrl,
-      file_name: selectedFile,
-    })
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setChatData(data.map((line) => (isChatMessage(line) ? ensureSwipes(line) : line)))
-        } else {
-          setChatData([buildInitialChatData(character, activePersonaName)[0]])
-        }
-      })
-      .catch((err) => setError(err.message))
-  }, [avatarUrl, selectedFile, character, activePersonaName])
+  // Initialize local chat data from the fetched session.
+  useEffect(() => {
+    if (!chatSession) return
+    if (chatSession.file_id === lastSessionIdRef.current) return
+    lastSessionIdRef.current = chatSession.file_id
+
+    if (chatSession.lines.length > 0) {
+      setChatData(chatSession.lines.map((line) => (isChatMessage(line) ? ensureSwipes(line) : line)))
+    } else {
+      setChatData([buildInitialChatData(character ?? null, activePersonaName)[0]])
+    }
+  }, [chatSession, character, activePersonaName])
 
   // Load connection and persona settings once.
   useEffect(() => {
@@ -238,6 +226,9 @@ export function useChat(): UseChatResult {
   const selectChat = useCallback(
     (fileId: string | null) => {
       setSelectedFile(fileId)
+      if (fileId !== lastSessionIdRef.current) {
+        lastSessionIdRef.current = null
+      }
       if (!avatarUrl) return
       const params: Record<string, string> = { avatar: avatarUrl }
       if (fileId) params.chat = fileId
@@ -246,80 +237,54 @@ export function useChat(): UseChatResult {
     [avatarUrl, setSearchParams],
   )
 
-  const loadChatFiles = useCallback(() => {
-    if (!avatarUrl) return
-
-    apiPost<ChatFile[]>('/api/characters/chats', { avatar_url: avatarUrl, simple: true })
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setChatFiles(data)
-        }
-      })
-      .catch((err) => setError(err.message))
-  }, [avatarUrl])
-
   const saveChatData = useCallback(
     async (data: ChatLine[]) => {
-      if (!avatarUrl || !selectedFile) return
+      if (!selectedFile) return
       try {
-        await apiPost('/api/chats/save', {
-          avatar_url: avatarUrl,
-          file_name: selectedFile,
-          chat: data,
-        })
+        await saveChatAsync({ fileId: selectedFile, chat: data })
       } catch (err) {
         console.error('Failed to save chat:', err)
         setError(err instanceof Error ? err.message : 'Failed to save chat')
       }
     },
-    [avatarUrl, selectedFile],
+    [selectedFile, saveChatAsync],
   )
 
   const handleRenameChat = useCallback(async () => {
-    if (!avatarUrl || !selectedFile) return
+    if (!selectedFile) return
     const currentFile = chatFiles.find((f) => f.file_id === selectedFile)
     const currentName = currentFile?.file_name.replace(/\.jsonl$/i, '') || selectedFile
     const newName = window.prompt('Rename chat:', currentName)?.trim()
     if (!newName || newName === currentName) return
 
     try {
-      const data = await apiPost<{ ok: boolean; sanitizedFileName?: string }>('/api/chats/rename', {
-        avatar_url: avatarUrl,
-        original_file: `${selectedFile}.jsonl`,
-        renamed_file: `${newName}.jsonl`,
-      })
-      await loadChatFiles()
-      if (data.ok && data.sanitizedFileName) {
-        selectChat(data.sanitizedFileName)
-      } else {
-        selectChat(newName)
-      }
+      const data = await renameChatAsync({ fileId: selectedFile, newName })
+      const response = data as { sanitizedFileName?: string; file_id?: string; fileId?: string } | undefined
+      const newFileId = response?.sanitizedFileName || response?.file_id || response?.fileId || newName
+      selectChat(newFileId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to rename chat')
     }
-  }, [avatarUrl, selectedFile, chatFiles, loadChatFiles, selectChat])
+  }, [selectedFile, chatFiles, renameChatAsync, selectChat])
 
   const handleDeleteChat = useCallback(async () => {
-    if (!avatarUrl || !selectedFile) return
+    if (!selectedFile) return
     if (!window.confirm('Delete this chat? This cannot be undone.')) return
 
+    const remaining = chatFiles.filter((f) => f.file_id !== selectedFile)
+    if (remaining.length > 0) {
+      selectChat(remaining[0].file_id)
+    } else {
+      selectChat(null)
+      setChatData([])
+    }
+
     try {
-      await apiPost('/api/chats/delete', {
-        avatar_url: avatarUrl,
-        chatfile: `${selectedFile}.jsonl`,
-      })
-      const remaining = chatFiles.filter((f) => f.file_id !== selectedFile)
-      if (remaining.length > 0) {
-        selectChat(remaining[0].file_id)
-      } else {
-        selectChat(null)
-        setChatData([])
-      }
-      await loadChatFiles()
+      await deleteChatAsync(selectedFile)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete chat')
     }
-  }, [avatarUrl, selectedFile, chatFiles, loadChatFiles, selectChat])
+  }, [selectedFile, chatFiles, deleteChatAsync, selectChat])
 
   const handleClearChat = useCallback(async () => {
     if (chatData.length <= 1) return
@@ -361,17 +326,13 @@ export function useChat(): UseChatResult {
     const initialData = buildInitialChatData(character, activePersonaName)
 
     try {
-      await apiPost('/api/chats/save', {
-        avatar_url: avatarUrl,
-        file_name: fileId,
-        chat: initialData,
-      })
-      await loadChatFiles()
+      await saveChatAsync({ fileId, chat: initialData })
+      queryClient.invalidateQueries({ queryKey: chatKeys.character(avatarUrl) })
       selectChat(fileId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create new chat')
     }
-  }, [avatarUrl, character, activePersonaName, loadChatFiles, selectChat])
+  }, [avatarUrl, character, activePersonaName, saveChatAsync, queryClient, selectChat])
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || !character || generating) return
@@ -385,13 +346,10 @@ export function useChat(): UseChatResult {
       const initialData = buildInitialChatData(character, activePersonaName)
 
       try {
-        await apiPost('/api/chats/save', {
-          avatar_url: avatarUrl,
-          file_name: currentFileId,
-          chat: initialData,
-        })
+        await saveChatAsync({ fileId: currentFileId, chat: initialData })
+        queryClient.invalidateQueries({ queryKey: chatKeys.character(avatarUrl || '') })
         selectChat(currentFileId)
-        setChatFiles((prev) => [...prev, { file_name: fileName, file_id: currentFileId }])
+        lastSessionIdRef.current = currentFileId
         currentChatData = initialData
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to create chat file')
@@ -445,18 +403,10 @@ export function useChat(): UseChatResult {
         setChatData(workingChat)
       }
 
-      await apiPost('/api/chats/save', {
-        avatar_url: avatarUrl,
-        file_name: currentFileId,
-        chat: workingChat,
-      })
+      await saveChatAsync({ fileId: currentFileId, chat: workingChat })
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        await apiPost('/api/chats/save', {
-          avatar_url: avatarUrl,
-          file_name: currentFileId,
-          chat: workingChat,
-        })
+        await saveChatAsync({ fileId: currentFileId, chat: workingChat })
         return
       }
 
@@ -467,11 +417,7 @@ export function useChat(): UseChatResult {
       )
       workingChat = [...workingChat.slice(0, replyIndex), updatedReply, ...workingChat.slice(replyIndex + 1)]
       setChatData(workingChat)
-      await apiPost('/api/chats/save', {
-        avatar_url: avatarUrl,
-        file_name: currentFileId,
-        chat: workingChat,
-      })
+      await saveChatAsync({ fileId: currentFileId, chat: workingChat })
     } finally {
       setGenerating(false)
       abortControllerRef.current = null
@@ -486,6 +432,8 @@ export function useChat(): UseChatResult {
     connection,
     avatarUrl,
     selectChat,
+    saveChatAsync,
+    queryClient,
   ])
 
   const handleStop = useCallback(() => {
@@ -609,9 +557,11 @@ export function useChat(): UseChatResult {
     setCurrentMatchIndex((prev) => (prev + 1) % matchIndices.length)
   }, [matchIndices.length])
 
+  const loading = characterLoading || chatFilesLoading || chatSessionLoading
+
   return {
     messagesParentRef,
-    character,
+    character: character ?? null,
     chatFiles,
     selectedFile,
     chatData,

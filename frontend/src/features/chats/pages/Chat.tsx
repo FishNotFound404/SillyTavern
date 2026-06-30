@@ -3,7 +3,7 @@ import { useChat } from '../hooks/useChat'
 import { ChatHeader } from '../components/ChatHeader'
 import { ChatInput } from '../components/ChatInput'
 import { ChatMessageItem } from '../components/ChatMessageItem'
-import { ChatSkeleton, EmptyState, ErrorState } from '../components/ui'
+import { ChatSkeleton, EmptyState, ErrorState } from '../../../components/ui'
 
 function Chat() {
   const navigate = useNavigate()
