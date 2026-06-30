@@ -51,3 +51,9 @@ Long-running generation requests use `streamCompletion` from `features/chats/uti
 ## Legacy Frontend
 
 `public/` contains the jQuery frontend. Both frontends coexist; the legacy one is the default Express entry point. The React frontend runs on `http://localhost:5173` in dev. Production cut-over is tracked separately.
+
+## Outstanding Cleanup
+
+- `frontend/src/types/connection.ts` and `frontend/src/utils/connection.ts` were deprecated re-export shims introduced in Task 6 for cross-feature consumers (`useChat`, `useGroupChat`). Both consumers were migrated in Tasks 8/9 to import directly from `features/settings/`, so the shims have been deleted (Task 11).
+- `frontend/src/pages/` (the pre-refactor top-level pages directory) was emptied as part of the feature-folder migration (Tasks 5-9) and has been removed (Task 11).
+- Six pre-existing `react-hooks/exhaustive-deps` lint warnings in `features/{chats,groups,settings}/hooks/` (`useChat.ts`, `useGroupChat.ts`, `useSettings.ts`) stem from `useQuery.data ?? []` and `useQuery.data ?? {}` falling back to a fresh array/object reference each render. Future cleanup should memoize the fallback (e.g., `useMemo(() => data ?? EMPTY_ARRAY, [data])`) or hoist the empty value to module scope.
