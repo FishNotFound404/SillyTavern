@@ -1,4 +1,4 @@
-import type { Character } from '../features/characters/types'
+import type { Character } from '../../characters/types'
 
 interface GroupMemberSidebarProps {
   members: Character[]

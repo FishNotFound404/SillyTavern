@@ -1,39 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiPost } from '../api/client'
-import { EmptyState, ErrorState, LoadingState } from '../components/ui'
-import type { Character } from '../features/characters/types'
-import { createGroup } from '../utils/group'
+import { EmptyState, ErrorState, LoadingState } from '../../../components/ui'
+import type { Character } from '../../characters/types'
+import { useCharacters } from '../../characters/api'
+import { useCreateGroup } from '../api'
 
 function GroupEdit() {
   const navigate = useNavigate()
-  const [characters, setCharacters] = useState<Character[]>([])
+  const { data: characters = [], isLoading: loading, error: queryError } = useCharacters()
+  const createGroup = useCreateGroup()
   const [name, setName] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [allowSelfResponses, setAllowSelfResponses] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    apiPost<Character[]>('/api/characters/all', {})
-      .then((data) => {
-        if (cancelled) return
-        setCharacters(data || [])
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Failed to load characters')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : 'Failed to load characters'
+    : localError
 
   const toggleMember = (avatar: string) => {
     setSelected((prev) => {
@@ -47,22 +32,20 @@ function GroupEdit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || selected.size === 0) {
-      setError('Group name and at least one member are required')
+      setLocalError('Group name and at least one member are required')
       return
     }
 
-    setSaving(true)
-    setError(null)
+    setLocalError(null)
     try {
-      const group = await createGroup({
+      const group = await createGroup.mutateAsync({
         name: name.trim(),
         members: Array.from(selected),
         allow_self_responses: allowSelfResponses,
       })
       navigate(`/chat?group=${encodeURIComponent(group.id)}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create group')
-      setSaving(false)
+      setLocalError(err instanceof Error ? err.message : 'Failed to create group')
     }
   }
 
@@ -103,7 +86,7 @@ function GroupEdit() {
             />
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {characters.map((character) => {
+              {characters.map((character: Character) => {
                 const active = selected.has(character.avatar)
                 return (
                   <button
@@ -147,17 +130,17 @@ function GroupEdit() {
           <button
             type="button"
             onClick={() => navigate('/groups')}
-            disabled={saving}
+            disabled={createGroup.isPending}
             className="px-5 py-2.5 text-gray-300 hover:text-white disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={saving || !name.trim() || selected.size === 0}
+            disabled={createGroup.isPending || !name.trim() || selected.size === 0}
             className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {saving ? 'Creating...' : 'Create Group'}
+            {createGroup.isPending ? 'Creating...' : 'Create Group'}
           </button>
         </div>
       </form>

@@ -1,4 +1,7 @@
-import type { Character } from '../features/characters/types'
+import type { Character } from '../characters/types'
+import type { ChatLine, ChatMessage, ChatMetadata } from '../../api/types'
+
+export type { ChatLine, ChatMessage, ChatMetadata }
 
 export interface Group {
   id: string

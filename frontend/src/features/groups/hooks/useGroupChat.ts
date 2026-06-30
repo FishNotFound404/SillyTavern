@@ -1,31 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { apiPost } from '../api/client'
-import type { Character } from '../features/characters/types'
-import type { ChatMessage } from '../types'
-import type { Group } from '../types/group'
-import type { PersonaState } from '../features/personas/types'
-import type { ConnectionSettings } from '../types/connection'
-import { generateUUID, streamCompletion, stripThinkTags } from '../features/chats/utils'
-import { isChatMessage } from '../utils/chatMessageActions'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { Character } from '../../characters/types'
+import { useCharacters } from '../../characters/api'
+import type { Group, ChatMessage } from '../types'
+import type { GroupChatLine } from '../utils'
+import type { PersonaState } from '../../personas/types'
+import type { ConnectionSettings } from '../../settings/types'
+import { useSettings } from '../../settings/api'
+import { generateUUID, streamCompletion, stripThinkTags } from '../../chats/utils'
+import { isChatMessage } from '../../../utils/chatMessageActions'
 import {
   buildGenerationRequest,
   DEFAULT_CONNECTION,
   readConnectionSettings,
-} from '../utils/connection'
+} from '../../settings/utils/connection'
 import {
   buildGroupSystemPrompt,
   createGroupChatMetadata,
-  fetchGroup,
-  fetchGroupChat,
-  fetchGroupMembers,
   getLastSpeakerName,
   pickNextSpeaker,
-  saveGroupChat,
-  updateGroup,
-  type GroupChatLine,
-} from '../utils/group'
-import { getDefaultPersona, getPersonaAvatarUrl, readPersonaState } from '../features/personas/utils'
+} from '../utils'
+import { getDefaultPersona, getPersonaAvatarUrl, readPersonaState } from '../../personas/utils'
+import { fetchGroupChat, groupKeys, saveGroupChat, useGroup, useUpdateGroup } from '../api'
 
 export interface UseGroupChatResult {
   // Refs
@@ -67,13 +64,16 @@ export function useGroupChat(): UseGroupChatResult {
   const [searchParams, setSearchParams] = useSearchParams()
   const groupId = searchParams.get('group')
 
-  const [group, setGroup] = useState<Group | null>(null)
-  const [members, setMembers] = useState<Character[]>([])
+  const queryClient = useQueryClient()
+  const { data: group, isLoading: groupLoading, error: groupError } = useGroup(groupId || undefined)
+  const { data: characters = [] } = useCharacters()
+  const { mutateAsync: updateGroupAsync } = useUpdateGroup()
+  const { data: settingsResponse } = useSettings()
+
   const [chatData, setChatData] = useState<GroupChatLine[]>([])
   const [input, setInput] = useState('')
   const [generating, setGenerating] = useState(false)
   const [currentSpeaker, setCurrentSpeaker] = useState<Character | null>(null)
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [personaState, setPersonaState] = useState<PersonaState>({ personas: [], defaultId: null })
   const [connection, setConnection] = useState<ConnectionSettings>(DEFAULT_CONNECTION)
@@ -82,56 +82,53 @@ export function useGroupChat(): UseGroupChatResult {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const currentChatIdRef = useRef<string | null>(null)
 
   const activePersona = getDefaultPersona(personaState)
   const activePersonaName = activePersona?.name || 'User'
   const activePersonaAvatar = activePersona ? getPersonaAvatarUrl(activePersona.avatar) : undefined
 
-  // Load group, members, chat, and settings when groupId changes.
+  const members = useMemo(() => {
+    if (!group) return []
+    const memberSet = new Set(group.members)
+    return characters.filter((c) => memberSet.has(c.avatar))
+  }, [group, characters])
+
+  const { data: fetchedChat = [], isLoading: chatLoading } = useQuery({
+    queryKey: groupKeys.chat(group?.chat_id || ''),
+    queryFn: () => fetchGroupChat(group!.chat_id),
+    enabled: Boolean(group?.chat_id),
+  })
+
+  const { mutateAsync: saveGroupChatAsync } = useMutation({
+    mutationFn: ({ id, chat }: { id: string; chat: GroupChatLine[] }) => saveGroupChat(id, chat),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: groupKeys.chat(id) })
+    },
+  })
+
+  // Initialize local chat data when the active group chat changes.
   useEffect(() => {
-    let cancelled = false
+    if (!group) return
+    if (currentChatIdRef.current === group.chat_id) return
+    currentChatIdRef.current = group.chat_id
+    setChatData((fetchedChat as GroupChatLine[]) ?? [])
+  }, [group, fetchedChat])
 
-    const load = async () => {
-      if (!groupId) {
-        setError('No group selected')
-        setLoading(false)
-        return
-      }
-
-      setLoading(true)
-      setError(null)
-
-      try {
-        const [groupData, settings] = await Promise.all([
-          fetchGroup(groupId),
-          apiPost<{ settings: string }>('/api/settings/get', {}),
-        ])
-
-        if (cancelled) return
-        setGroup(groupData)
-        setConnection(readConnectionSettings(settings?.settings ? JSON.parse(settings.settings) : {}))
-        setPersonaState(readPersonaState(settings?.settings ? JSON.parse(settings.settings) : {}))
-
-        const memberData = await fetchGroupMembers(groupData.members)
-        if (cancelled) return
-        setMembers(memberData)
-
-        const chat = await fetchGroupChat(groupData.chat_id)
-        if (cancelled) return
-        setChatData(Array.isArray(chat) ? (chat as GroupChatLine[]) : [])
-      } catch (err) {
-        if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Failed to load group chat')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+  // Load connection and persona settings when settings arrive.
+  useEffect(() => {
+    if (!settingsResponse) return
+    try {
+      const parsed = settingsResponse.settings
+        ? (JSON.parse(settingsResponse.settings) as Record<string, unknown>)
+        : {}
+      setConnection(readConnectionSettings(parsed))
+      setPersonaState(readPersonaState(parsed))
+    } catch {
+      setConnection(DEFAULT_CONNECTION)
+      setPersonaState({ personas: [], defaultId: null })
     }
-
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [groupId])
+  }, [settingsResponse])
 
   // Scroll to the latest message when chat data or generation state changes.
   useEffect(() => {
@@ -161,16 +158,27 @@ export function useGroupChat(): UseGroupChatResult {
     element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [matchIndices, currentMatchIndex])
 
+  // Surface group loading errors and missing group id.
+  useEffect(() => {
+    if (groupError) {
+      setError(groupError instanceof Error ? groupError.message : 'Failed to load group')
+    } else if (!groupId) {
+      setError('No group selected')
+    } else {
+      setError(null)
+    }
+  }, [groupError, groupId])
+
   const saveMessages = useCallback(
     async (messages: GroupChatLine[]) => {
       if (!group) return
       try {
-        await saveGroupChat(group.chat_id, messages)
+        await saveGroupChatAsync({ id: group.chat_id, chat: messages })
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to save chat')
       }
     },
-    [group],
+    [group, saveGroupChatAsync],
   )
 
   const generateReply = useCallback(
@@ -271,19 +279,20 @@ export function useGroupChat(): UseGroupChatResult {
 
   const handleNewChat = useCallback(async () => {
     if (!group) return
-    const newId = generateUUID() // need import from utils/chat
+    const newId = generateUUID()
     const updated: Group = { ...group, chat_id: newId, chats: [newId] }
     try {
-      await updateGroup(updated)
+      setError(null)
+      await updateGroupAsync(updated)
       const initial: GroupChatLine[] = [createGroupChatMetadata()]
-      await saveGroupChat(newId, initial)
-      setGroup(updated)
+      await saveGroupChatAsync({ id: newId, chat: initial })
+      currentChatIdRef.current = newId
       setChatData(initial)
       setSearchParams({ group: group.id, chat: newId })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create new chat')
     }
-  }, [group, setSearchParams])
+  }, [group, updateGroupAsync, saveGroupChatAsync, setSearchParams])
 
   const handlePreviousMatch = useCallback(() => {
     setCurrentMatchIndex((prev) => (prev - 1 + matchIndices.length) % matchIndices.length)
@@ -293,9 +302,11 @@ export function useGroupChat(): UseGroupChatResult {
     setCurrentMatchIndex((prev) => (prev + 1) % matchIndices.length)
   }, [matchIndices.length])
 
+  const loading = groupLoading || chatLoading
+
   return {
     messagesEndRef,
-    group,
+    group: group ?? null,
     members,
     chatData,
     input,

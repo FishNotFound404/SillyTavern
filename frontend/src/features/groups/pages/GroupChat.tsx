@@ -4,7 +4,7 @@ import { GroupMemberSidebar } from '../components/GroupMemberSidebar'
 import { GroupChatHeader } from '../components/GroupChatHeader'
 import { GroupChatInput } from '../components/GroupChatInput'
 import { GroupMessageList } from '../components/GroupMessageList'
-import { LoadingState, ErrorState } from '../components/ui'
+import { LoadingState, ErrorState } from '../../../components/ui'
 
 export default function GroupChat() {
   const navigate = useNavigate()

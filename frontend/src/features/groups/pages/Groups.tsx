@@ -1,48 +1,33 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { EmptyState, ErrorState, LoadingState } from '../components/ui'
-import type { Group } from '../types/group'
-import { deleteGroup, fetchGroups } from '../utils/group'
+import { EmptyState, ErrorState, LoadingState } from '../../../components/ui'
+import type { Group } from '../types'
+import { useGroups, useDeleteGroup } from '../api'
 
 function Groups() {
   const navigate = useNavigate()
-  const [groups, setGroups] = useState<Group[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const { data: groups = [], isLoading: loading, error: queryError, refetch } = useGroups()
+  const deleteMutation = useDeleteGroup()
+  const [localError, setLocalError] = useState<string | null>(null)
 
-  const loadGroups = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await fetchGroups()
-      setGroups(data || [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load groups')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadGroups()
-  }, [])
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : 'Failed to load groups'
+    : localError
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Delete this group and all its chats?')) return
+    setLocalError(null)
     try {
-      setDeleting(id)
-      await deleteGroup(id)
-      setGroups((prev) => prev.filter((g) => g.id !== id))
+      await deleteMutation.mutateAsync(id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete group')
-    } finally {
-      setDeleting(null)
+      setLocalError(err instanceof Error ? err.message : 'Failed to delete group')
     }
   }
 
   if (loading) return <LoadingState message="Loading groups..." />
-  if (error) return <ErrorState title="Failed to load groups" message={error} onRetry={loadGroups} />
+  if (error) return <ErrorState title="Failed to load groups" message={error} onRetry={refetch} />
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -68,7 +53,7 @@ function Groups() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {groups.map((group) => (
+          {groups.map((group: Group) => (
             <div
               key={group.id}
               className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 hover:border-blue-500 transition-colors"
@@ -107,10 +92,10 @@ function Groups() {
               <div className="px-4 pb-4">
                 <button
                   onClick={() => handleDelete(group.id)}
-                  disabled={deleting === group.id}
+                  disabled={deleteMutation.isPending && deleteMutation.variables === group.id}
                   className="w-full px-3 py-2 bg-red-600/80 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-medium transition-colors"
                 >
-                  {deleting === group.id ? 'Deleting...' : 'Delete'}
+                  {deleteMutation.isPending && deleteMutation.variables === group.id ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { useSearchParams } from 'react-router-dom'
 import Chat from './Chat'
 import ChatList from './ChatList'
-import GroupChat from '../../../pages/GroupChat'
+import GroupChat from '../../groups/pages/GroupChat'
 
 function ChatRouter() {
   const [searchParams] = useSearchParams()
