@@ -1,5 +1,5 @@
-import type { ChatProvider, ConnectionSettings, MiniMaxEndpoint, ModelInfo } from '../types/connection'
-import { PROVIDER_CONFIG } from '../utils/connection'
+import type { ChatProvider, ConnectionSettings, MiniMaxEndpoint, ModelInfo } from '../types'
+import { PROVIDER_CONFIG } from '../utils'
 
 interface ConnectionSectionProps {
   connection: ConnectionSettings

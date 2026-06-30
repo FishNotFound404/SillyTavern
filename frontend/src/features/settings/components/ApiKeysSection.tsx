@@ -1,5 +1,5 @@
-import type { SecretState } from '../types/settings'
-import { COMMON_API_KEYS, isSecretConfigured } from '../utils/settings'
+import type { SecretState } from '../types'
+import { COMMON_API_KEYS, isSecretConfigured } from '../utils'
 
 interface ApiKeysSectionProps {
   secrets: SecretState

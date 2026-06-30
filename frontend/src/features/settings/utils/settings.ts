@@ -1,4 +1,4 @@
-import type { ApiKeyConfig, SecretState } from '../types/settings'
+import type { ApiKeyConfig, SecretState } from '../types'
 
 export const COMMON_API_KEYS: ApiKeyConfig[] = [
   { key: 'api_key_openai', label: 'OpenAI' },

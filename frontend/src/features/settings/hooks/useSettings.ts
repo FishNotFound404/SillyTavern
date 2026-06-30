@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiGet, apiPost } from '../api/client'
-import type { BackendStatus, SecretState } from '../types/settings'
-import type { ChatProvider, ConnectionSettings, MiniMaxEndpoint, ModelInfo } from '../types/connection'
+import {
+  useBackendStatus,
+  useDeletePreset,
+  useDeleteSecret,
+  useModels,
+  usePresets,
+  useSavePreset,
+  useSaveSecret,
+  useSaveSettings,
+  useSecrets,
+  useSettings as useSettingsQuery,
+} from '../api'
+import type { BackendStatus, ChatProvider, ConnectionSettings, GenerationPreset, MiniMaxEndpoint, ModelInfo, SecretState } from '../types'
 import {
   DEFAULT_CONNECTION,
-  fetchModels,
+  getApiKeyLabel,
   getDefaultModel,
   getProviderConfig,
+  isSecretConfigured,
   readConnectionSettings,
   writeConnectionSettings,
-} from '../utils/connection'
-import { getApiKeyLabel, isSecretConfigured } from '../utils/settings'
-import { deletePreset, fetchPresets, savePreset } from '../utils/presets'
-import type { GenerationPreset } from '../types/preset'
-
-interface SettingsResponse {
-  settings: string
-}
+} from '../utils'
 
 export interface UseSettingsResult {
   // State
@@ -64,101 +68,78 @@ export interface UseSettingsResult {
 }
 
 export function useSettings(): UseSettingsResult {
-  const [backend, setBackend] = useState<BackendStatus>({ online: false })
-  const [secrets, setSecrets] = useState<SecretState>({})
+  const { data: settingsResponse, isLoading: settingsLoading, error: settingsError } = useSettingsQuery()
+  const { mutateAsync: saveSettingsAsync, isPending: savingConnection } = useSaveSettings()
+
+  const [connection, setConnection] = useState<ConnectionSettings>(DEFAULT_CONNECTION)
   const [secretInputs, setSecretInputs] = useState<Record<string, string>>({})
   const [savingKeys, setSavingKeys] = useState<Record<string, boolean>>({})
-  const [connection, setConnection] = useState<ConnectionSettings>(DEFAULT_CONNECTION)
-  const [savingConnection, setSavingConnection] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [operationError, setOperationError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
-  const [models, setModels] = useState<ModelInfo[]>([])
-  const [loadingModels, setLoadingModels] = useState(false)
-  const [modelError, setModelError] = useState<string | null>(null)
+  const [manualError, setManualError] = useState<string | null>(null)
+
   const [customMode, setCustomMode] = useState(false)
-  const [presetNames, setPresetNames] = useState<string[]>([])
-  const [presets, setPresets] = useState<GenerationPreset[]>([])
+
   const [selectedPreset, setSelectedPreset] = useState('')
   const [presetNameInput, setPresetNameInput] = useState('')
   const [presetLoading, setPresetLoading] = useState(false)
   const [presetMessage, setPresetMessage] = useState<string | null>(null)
   const [presetError, setPresetError] = useState<string | null>(null)
 
-  // Initial load: backend status, connection settings, and secrets.
-  useEffect(() => {
-    async function load() {
-      try {
-        const [backendData, settingsData, secretsData] = await Promise.all([
-          apiGet<BackendStatus>('/api/settings/status').catch(() => ({ online: false })),
-          apiPost<SettingsResponse>('/api/settings/get', {}),
-          apiPost<SecretState>('/api/secrets/read', {}),
-        ])
-        setBackend(backendData)
-        setConnection(readConnectionSettings(settingsData?.settings ? JSON.parse(settingsData.settings) : {}))
-        setSecrets(secretsData || {})
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load settings')
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [])
+  const { data: backend = { online: false }, isLoading: backendLoading, error: backendError } = useBackendStatus(connection)
+  const { data: secrets = {}, isLoading: secretsLoading, error: secretsError } = useSecrets()
+  const { mutateAsync: saveSecretAsync } = useSaveSecret()
+  const { mutateAsync: deleteSecretAsync } = useDeleteSecret()
 
-  // Load generation presets.
-  useEffect(() => {
-    async function loadPresets() {
-      try {
-        const data = await fetchPresets()
-        setPresetNames(data.names)
-        setPresets(data.presets)
-      } catch (err) {
-        console.warn('Failed to load generation presets:', err)
-      }
-    }
-    loadPresets()
-  }, [])
+  const { data: presetsData = { names: [], presets: [] }, error: presetsErrorData } = usePresets()
+  const { mutateAsync: savePresetAsync } = useSavePreset()
+  const { mutateAsync: deletePresetAsync } = useDeletePreset()
 
   const activeSecretKey = getProviderConfig(connection.provider).secretKey
   const isModelConfigurable = isSecretConfigured(secrets, activeSecretKey)
 
-  // Fetch available models when provider/key changes.
-  useEffect(() => {
-    let cancelled = false
-    setModelError(null)
+  const { data: models = [], isLoading: loadingModels, error: modelErrorData } = useModels(
+    isModelConfigurable ? connection.provider : '',
+  )
+  const modelError = modelErrorData instanceof Error ? modelErrorData.message : null
 
+  const loading = settingsLoading || backendLoading || secretsLoading
+  const error =
+    operationError ||
+    manualError ||
+    settingsError?.message ||
+    backendError?.message ||
+    secretsError?.message ||
+    null
+
+  // Parse connection settings when query data arrives.
+  useEffect(() => {
+    if (settingsResponse?.settings) {
+      try {
+        setConnection(readConnectionSettings(JSON.parse(settingsResponse.settings)))
+      } catch {
+        setManualError('Failed to parse settings')
+      }
+    }
+  }, [settingsResponse])
+
+  // Keep model selection in sync with fetched models.
+  useEffect(() => {
     if (!isModelConfigurable) {
-      setModels([])
       setCustomMode(false)
-      setLoadingModels(false)
       return
     }
-
-    setLoadingModels(true)
-    fetchModels(connection.provider)
-      .then((list) => {
-        if (cancelled) return
-        setModels(list)
-        if (list.length > 0 && !list.some((m) => m.id === connection.model)) {
-          setConnection((prev) => ({ ...prev, model: list[0].id }))
-        }
-        setCustomMode(false)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setModelError(err instanceof Error ? err.message : 'Failed to load models')
-        setModels([])
-        setCustomMode(true)
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingModels(false)
-      })
-
-    return () => {
-      cancelled = true
+    if (modelErrorData) {
+      setCustomMode(true)
+      return
     }
-  }, [connection.provider, connection.model, activeSecretKey, secrets, isModelConfigurable])
+    if (models.length > 0) {
+      setCustomMode(false)
+      if (!models.some((m) => m.id === connection.model)) {
+        setConnection((prev) => ({ ...prev, model: models[0].id }))
+      }
+    }
+  }, [isModelConfigurable, modelErrorData, models]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleProviderChange = useCallback((provider: ChatProvider) => {
     setConnection((prev) => ({
@@ -182,30 +163,20 @@ export function useSettings(): UseSettingsResult {
   }, [])
 
   const handleSaveConnection = useCallback(async () => {
-    setSavingConnection(true)
+    setOperationError(null)
     setSaveMessage(null)
-    setError(null)
     try {
-      const data = await apiPost<SettingsResponse>('/api/settings/get', {})
-      const parsed = data?.settings ? (JSON.parse(data.settings) as Record<string, unknown>) : {}
+      const parsed = settingsResponse?.settings ? JSON.parse(settingsResponse.settings) : {}
       const updated = writeConnectionSettings(parsed, connection)
-      await apiPost('/api/settings/save', updated)
+      await saveSettingsAsync(updated)
       setSaveMessage(`Connection saved: ${getProviderConfig(connection.provider).label} / ${connection.model}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save connection')
-    } finally {
-      setSavingConnection(false)
+      setOperationError(err instanceof Error ? err.message : 'Failed to save connection')
     }
-  }, [connection])
-
-  const refreshPresets = useCallback(async () => {
-    const data = await fetchPresets()
-    setPresetNames(data.names)
-    setPresets(data.presets)
-  }, [])
+  }, [connection, saveSettingsAsync, settingsResponse])
 
   const handleApplyPreset = useCallback(() => {
-    const preset = presets.find((p) => p.name === selectedPreset)
+    const preset = presetsData.presets.find((p) => p.name === selectedPreset)
     if (!preset) {
       setPresetError('Select a preset to apply.')
       return
@@ -218,7 +189,7 @@ export function useSettings(): UseSettingsResult {
     }))
     setPresetError(null)
     setPresetMessage('Preset applied. Save connection to persist.')
-  }, [presets, selectedPreset])
+  }, [presetsData.presets, selectedPreset])
 
   const handleSavePreset = useCallback(async () => {
     const name = presetNameInput.trim()
@@ -231,12 +202,14 @@ export function useSettings(): UseSettingsResult {
     setPresetError(null)
     setPresetMessage(null)
     try {
-      await savePreset(name, {
-        provider: connection.provider,
-        model: connection.model,
-        minimaxEndpoint: connection.minimaxEndpoint,
+      await savePresetAsync({
+        name,
+        preset: {
+          provider: connection.provider,
+          model: connection.model,
+          minimaxEndpoint: connection.minimaxEndpoint,
+        },
       })
-      await refreshPresets()
       setSelectedPreset(name)
       setPresetNameInput('')
       setPresetMessage(`Preset "${name}" saved.`)
@@ -245,14 +218,15 @@ export function useSettings(): UseSettingsResult {
     } finally {
       setPresetLoading(false)
     }
-  }, [connection, presetNameInput, refreshPresets])
+  }, [connection, presetNameInput, savePresetAsync])
 
   const handleDeletePreset = useCallback(async () => {
-    if (!selectedPreset) {
+    const name = selectedPreset
+    if (!name) {
       setPresetError('Select a preset to delete.')
       return
     }
-    if (!window.confirm(`Delete preset "${selectedPreset}"?`)) {
+    if (!window.confirm(`Delete preset "${name}"?`)) {
       return
     }
 
@@ -260,16 +234,15 @@ export function useSettings(): UseSettingsResult {
     setPresetError(null)
     setPresetMessage(null)
     try {
-      await deletePreset(selectedPreset)
-      await refreshPresets()
+      await deletePresetAsync(name)
       setSelectedPreset('')
-      setPresetMessage(`Preset "${selectedPreset}" deleted.`)
+      setPresetMessage(`Preset "${name}" deleted.`)
     } catch (err) {
       setPresetError(err instanceof Error ? err.message : 'Failed to delete preset')
     } finally {
       setPresetLoading(false)
     }
-  }, [selectedPreset, refreshPresets])
+  }, [selectedPreset, deletePresetAsync])
 
   const handleSecretInputChange = useCallback((key: string, value: string) => {
     setSecretInputs((prev) => ({ ...prev, [key]: value }))
@@ -282,35 +255,32 @@ export function useSettings(): UseSettingsResult {
     try {
       setSavingKeys((prev) => ({ ...prev, [key]: true }))
       setSaveMessage(null)
-      await apiPost('/api/secrets/write', { key, value, label: 'React UI' })
-      const updated = await apiPost<SecretState>('/api/secrets/read', {})
-      setSecrets(updated || {})
+      await saveSecretAsync({ key, value })
       setSecretInputs((prev) => ({ ...prev, [key]: '' }))
       setSaveMessage(`${getApiKeyLabel(key)} API key saved`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save API key')
+      setOperationError(err instanceof Error ? err.message : 'Failed to save API key')
     } finally {
       setSavingKeys((prev) => ({ ...prev, [key]: false }))
     }
-  }, [secretInputs])
+  }, [secretInputs, saveSecretAsync])
 
   const handleDeleteKey = useCallback(async (key: string) => {
-    const id = secrets[key]?.find((item) => item.active)?.id
-    if (!id) return
+    if (!isSecretConfigured(secrets, key)) return
 
     try {
       setSavingKeys((prev) => ({ ...prev, [key]: true }))
       setSaveMessage(null)
-      await apiPost('/api/secrets/delete', { key, id })
-      const updated = await apiPost<SecretState>('/api/secrets/read', {})
-      setSecrets(updated || {})
+      await deleteSecretAsync(key)
       setSaveMessage(`${getApiKeyLabel(key)} API key removed`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete API key')
+      setOperationError(err instanceof Error ? err.message : 'Failed to delete API key')
     } finally {
       setSavingKeys((prev) => ({ ...prev, [key]: false }))
     }
-  }, [secrets])
+  }, [secrets, deleteSecretAsync])
+
+  const presetsQueryError = presetsErrorData instanceof Error ? presetsErrorData.message : null
 
   return {
     backend,
@@ -328,13 +298,13 @@ export function useSettings(): UseSettingsResult {
     customMode,
     activeSecretKey,
     isModelConfigurable,
-    presetNames,
-    presets,
+    presetNames: presetsData.names,
+    presets: presetsData.presets,
     selectedPreset,
     presetNameInput,
     presetLoading,
     presetMessage,
-    presetError,
+    presetError: presetError ?? presetsQueryError,
     handleProviderChange,
     handleMinimaxEndpointChange,
     handleModelChange,

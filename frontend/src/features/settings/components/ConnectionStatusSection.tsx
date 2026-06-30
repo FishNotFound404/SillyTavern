@@ -1,4 +1,4 @@
-import type { BackendStatus } from '../types/settings'
+import type { BackendStatus } from '../types'
 
 interface ConnectionStatusSectionProps {
   backend: BackendStatus
