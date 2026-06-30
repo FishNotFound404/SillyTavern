@@ -7,7 +7,7 @@ This document describes the React + TypeScript frontend architecture. It complem
 | Layer | Responsibility | Tool |
 |---|---|---|
 | Server state | Data fetched from backend APIs; caching, invalidation, background refetch | TanStack Query |
-| Global client state | UI chrome (sidebar, theme, toasts); transient session pointers | Zustand |
+| Global client state | (reserved for future use) | — |
 | Local component state | Form inputs, toggles, ephemeral UI | React `useState` / `useReducer` |
 
 **Rule:** server state lives in TanStack Query. Never copy query results into Zustand.
@@ -18,7 +18,6 @@ This document describes the React + TypeScript frontend architecture. It complem
 frontend/src/
 ├── api/                # Low-level HTTP client (apiPost, ApiError, CSRF)
 ├── lib/                # Cross-domain utilities (queryClient, helpers)
-├── stores/             # Zustand stores (ui, session)
 ├── routes/             # Route fragments by domain
 ├── features/           # One folder per business domain
 │   └── <domain>/
