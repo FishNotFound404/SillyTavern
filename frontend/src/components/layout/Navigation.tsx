@@ -1,18 +1,22 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 function Navigation() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const location = useLocation()
 
-  const linkClass = ({ isActive }: { isActive: boolean }) =>
+  const isActive = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(path + '/')
+
+  const linkClass = (path: string) =>
     `block px-4 py-2 rounded-lg transition-colors ${
-      isActive
+      isActive(path)
         ? 'bg-blue-600 text-white'
         : 'text-gray-300 hover:bg-gray-700 hover:text-white'
     }`
 
   const links = [
-    { to: '/', label: 'Characters', end: true },
+    { to: '/', label: 'Characters' },
     { to: '/groups', label: 'Groups' },
     { to: '/chat', label: 'Chat' },
     { to: '/world-info', label: 'World Info' },
@@ -33,16 +37,15 @@ function Navigation() {
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-2">
-            {links.map(({ to, label, end }) => (
-              <NavLink
+            {links.map(({ to, label }) => (
+              <Link
                 key={to}
                 to={to}
-                end={end}
-                className={linkClass}
+                className={linkClass(to)}
                 onClick={() => setMenuOpen(false)}
               >
                 {label}
-              </NavLink>
+              </Link>
             ))}
           </div>
 
@@ -67,16 +70,15 @@ function Navigation() {
         {/* Mobile dropdown */}
         {menuOpen && (
           <div className="md:hidden pb-4 space-y-1">
-            {links.map(({ to, label, end }) => (
-              <NavLink
+            {links.map(({ to, label }) => (
+              <Link
                 key={to}
                 to={to}
-                end={end}
-                className={linkClass}
+                className={linkClass(to)}
                 onClick={() => setMenuOpen(false)}
               >
                 {label}
-              </NavLink>
+              </Link>
             ))}
           </div>
         )}
