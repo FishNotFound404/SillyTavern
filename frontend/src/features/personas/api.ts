@@ -5,10 +5,6 @@ import { settingsKeys, useSettingsBundle } from '../settings/api'
 import { readPersonaState, writePersonaState } from './utils'
 import type { PersonaState } from './types'
 
-export const personaKeys = {
-  all: ['personas'] as const,
-}
-
 export { useSettingsBundle as usePersonaBundle }
 export type { SettingsBundleResponse }
 
@@ -81,3 +77,4 @@ export function useDeletePersonaAvatar() {
     },
   })
 }
+
