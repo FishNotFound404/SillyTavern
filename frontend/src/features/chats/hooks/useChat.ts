@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { apiPost } from '../../../api/client'
 import type { ChatFile, ChatLine, ChatMessage } from '../../../api/types'
 import type { Character } from '../../characters/types'
 import type { ConnectionSettings } from '../../settings/types'
@@ -387,19 +386,19 @@ export function useChat(): UseChatResult {
     const initialData = buildInitialChatData(character, activePersonaName)
 
     try {
-      await apiPost('/api/chats/save', {
-        avatar_url: avatarUrl,
-        file_name: fileId,
+      await saveChatMutation.mutateAsync({
+        avatarUrl,
+        fileName: fileId,
         chat: initialData,
       })
       selectChat(fileId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create new chat')
     }
-  }, [avatarUrl, character, activePersonaName, selectChat])
+  }, [avatarUrl, character, activePersonaName, selectChat, saveChatMutation])
 
   const handleSend = useCallback(async () => {
-    if (!input.trim() || !character || generating) return
+    if (!input.trim() || !character || !avatarUrl || generating) return
 
     let currentFileId = selectedFile || ''
     let currentChatData = chatData
@@ -410,9 +409,9 @@ export function useChat(): UseChatResult {
       const initialData = buildInitialChatData(character, activePersonaName)
 
       try {
-        await apiPost('/api/chats/save', {
-          avatar_url: avatarUrl,
-          file_name: currentFileId,
+        await saveChatMutation.mutateAsync({
+          avatarUrl,
+          fileName: currentFileId,
           chat: initialData,
         })
         selectChat(currentFileId)
@@ -469,16 +468,16 @@ export function useChat(): UseChatResult {
         setChatData(workingChat)
       }
 
-      await apiPost('/api/chats/save', {
-        avatar_url: avatarUrl,
-        file_name: currentFileId,
+      await saveChatMutation.mutateAsync({
+        avatarUrl,
+        fileName: currentFileId,
         chat: workingChat,
       })
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        await apiPost('/api/chats/save', {
-          avatar_url: avatarUrl,
-          file_name: currentFileId,
+        await saveChatMutation.mutateAsync({
+          avatarUrl,
+          fileName: currentFileId,
           chat: workingChat,
         })
         return
@@ -491,9 +490,9 @@ export function useChat(): UseChatResult {
       )
       workingChat = [...workingChat.slice(0, replyIndex), updatedReply, ...workingChat.slice(replyIndex + 1)]
       setChatData(workingChat)
-      await apiPost('/api/chats/save', {
-        avatar_url: avatarUrl,
-        file_name: currentFileId,
+      await saveChatMutation.mutateAsync({
+        avatarUrl,
+        fileName: currentFileId,
         chat: workingChat,
       })
     } finally {
@@ -510,6 +509,7 @@ export function useChat(): UseChatResult {
     connection,
     avatarUrl,
     selectChat,
+    saveChatMutation,
   ])
 
   const handleStop = useCallback(() => {
