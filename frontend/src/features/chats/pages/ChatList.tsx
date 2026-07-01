@@ -1,71 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiPost } from '../../../api/client'
 import { EmptyState, ErrorState, LoadingState } from '../../../components/ui'
+import type { ChatFile } from '../../../api/types'
 import type { Character } from '../../characters/types'
-
-interface ChatFile {
-  file_id: string
-  file_name: string
-}
+import { useAllCharacterChats, useCharacters } from '../../characters/api'
 
 interface ChatListItem {
   character: Character
   file: ChatFile
 }
 
+const EMPTY_CHARACTERS: Character[] = []
+const EMPTY_CHATS: Record<string, ChatFile[]> = {}
+
 function ChatList() {
   const navigate = useNavigate()
-  const [characters, setCharacters] = useState<Character[]>([])
-  const [chatFilesByCharacter, setChatFilesByCharacter] = useState<Record<string, ChatFile[]>>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const charactersQuery = useCharacters()
+  const chatsQuery = useAllCharacterChats()
 
-  useEffect(() => {
-    let cancelled = false
-
-    const load = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const chars = await apiPost<Character[]>('/api/characters/all', {})
-        if (cancelled) return
-        setCharacters(chars || [])
-
-        const filesByCharacter: Record<string, ChatFile[]> = {}
-        await Promise.all(
-          (chars || []).map(async (character) => {
-            try {
-              const files = await apiPost<ChatFile[]>('/api/characters/chats', {
-                avatar_url: character.avatar,
-                simple: true,
-              })
-              if (cancelled) return
-              if (Array.isArray(files) && files.length > 0) {
-                filesByCharacter[character.avatar] = files
-              }
-            } catch {
-              // Ignore per-character chat fetch errors
-            }
-          }),
-        )
-
-        if (cancelled) return
-        setChatFilesByCharacter(filesByCharacter)
-      } catch (err) {
-        if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Failed to load chats')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const characters = charactersQuery.data ?? EMPTY_CHARACTERS
+  const chatFilesByCharacter = chatsQuery.data ?? EMPTY_CHATS
 
   const parseChatTimestamp = (fileName: string): number => {
     const match = fileName.match(/(\d{4})-(\d{2})-(\d{2})@(\d{2})h(\d{2})m(\d{2})s(\d+)ms/)
@@ -82,7 +36,6 @@ function ChatList() {
         list.push({ character, file })
       }
     }
-    // Newest first based on the actual timestamp embedded in the filename
     return list.sort((a, b) => parseChatTimestamp(b.file.file_name) - parseChatTimestamp(a.file.file_name))
   }, [characters, chatFilesByCharacter])
 
@@ -99,8 +52,24 @@ function ChatList() {
     })
   }
 
-  if (loading) return <LoadingState message="Loading chats..." />
-  if (error) return <ErrorState title="Couldn鈥檛 load chats" message={error} onRetry={() => window.location.reload()} />
+  const handleRetry = () => {
+    void charactersQuery.refetch()
+    void chatsQuery.refetch()
+  }
+
+  if (charactersQuery.isLoading || chatsQuery.isLoading) {
+    return <LoadingState message="Loading chats..." />
+  }
+
+  if (charactersQuery.isError) {
+    return (
+      <ErrorState
+        title="Couldn’t load chats"
+        message={charactersQuery.error instanceof Error ? charactersQuery.error.message : 'Failed to load chats'}
+        onRetry={handleRetry}
+      />
+    )
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

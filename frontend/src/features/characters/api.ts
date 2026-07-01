@@ -22,6 +22,10 @@ export async function fetchCharacterChats(avatar: string): Promise<ChatFile[]> {
   return apiPost<ChatFile[]>('/api/characters/chats', { avatar_url: avatar })
 }
 
+export async function fetchCharacterChatsSimple(avatar: string): Promise<ChatFile[]> {
+  return apiPost<ChatFile[]>('/api/characters/chats', { avatar_url: avatar, simple: true })
+}
+
 export async function createCharacter(formData: FormData): Promise<string> {
   const result = await apiPostForm<string | { avatar?: string }>('/api/characters/create', formData)
   if (typeof result === 'string') return result
@@ -148,6 +152,31 @@ export function useCharacter(avatar: string | undefined) {
     queryKey: characterKeys.detail(avatar || ''),
     queryFn: () => fetchCharacter(avatar || ''),
     enabled: Boolean(avatar),
+  })
+}
+
+export function useAllCharacterChats() {
+  const charactersQuery = useCharacters()
+  return useQuery({
+    queryKey: [...characterKeys.all, 'all-chats'],
+    queryFn: async () => {
+      const characters = charactersQuery.data ?? []
+      const filesByCharacter: Record<string, ChatFile[]> = {}
+      await Promise.all(
+        characters.map(async (character) => {
+          try {
+            const files = await fetchCharacterChatsSimple(character.avatar)
+            if (Array.isArray(files) && files.length > 0) {
+              filesByCharacter[character.avatar] = files
+            }
+          } catch {
+            // ignore per-character fetch failures
+          }
+        }),
+      )
+      return filesByCharacter
+    },
+    enabled: charactersQuery.isSuccess,
   })
 }
 
