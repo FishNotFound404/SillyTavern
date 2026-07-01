@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiGet, apiPost } from '../../api/client'
+import type { SettingsBundleResponse } from '../../api/types'
 import type {
   BackendStatus,
   ConnectionSettings,
@@ -15,10 +16,6 @@ export const settingsKeys = {
   presets: ['settings', 'presets'] as const,
   models: (provider: string) => ['settings', 'models', provider] as const,
   backend: ['settings', 'backend'] as const,
-}
-
-export interface SettingsBundleResponse {
-  settings: string
 }
 
 export async function fetchBackendStatus(): Promise<BackendStatus> {

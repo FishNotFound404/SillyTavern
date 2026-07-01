@@ -34,3 +34,7 @@ export interface ChatFile {
 }
 
 export type ChatLine = ChatMetadata | ChatMessage
+
+export interface SettingsBundleResponse {
+  settings: string
+}

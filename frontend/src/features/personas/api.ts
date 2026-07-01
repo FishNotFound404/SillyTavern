@@ -1,23 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiPost, apiPostForm } from '../../api/client'
+import type { SettingsBundleResponse } from '../../api/types'
+import { fetchSettingsBundle, settingsKeys, useSettingsBundle } from '../settings/api'
 import { readPersonaState, writePersonaState } from './utils'
 import type { PersonaState } from './types'
 
 export const personaKeys = {
   all: ['personas'] as const,
-  bundle: ['personas', 'bundle'] as const,
 }
 
-export interface SettingsBundleResponse {
-  settings: string
+export { useSettingsBundle as usePersonaBundle }
+export type { SettingsBundleResponse }
+
+export async function fetchPersonaBundle(): Promise<SettingsBundleResponse> {
+  return fetchSettingsBundle()
 }
 
 export interface PersonaUploadResponse {
   path: string
-}
-
-export async function fetchPersonaBundle(): Promise<SettingsBundleResponse> {
-  return apiPost<SettingsBundleResponse>('/api/settings/get', {})
 }
 
 export function parsePersonaBundle(
@@ -56,19 +56,12 @@ export async function savePersonaBundle(
   return apiPost<SettingsBundleResponse>('/api/settings/save', updated)
 }
 
-export function usePersonaBundle() {
-  return useQuery({
-    queryKey: personaKeys.bundle,
-    queryFn: fetchPersonaBundle,
-  })
-}
-
 export function useSavePersonaState() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: savePersonaBundle,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: personaKeys.bundle })
+      queryClient.invalidateQueries({ queryKey: settingsKeys.bundle })
     },
   })
 }
@@ -78,7 +71,7 @@ export function useUploadPersonaAvatar() {
   return useMutation({
     mutationFn: uploadPersonaAvatar,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: personaKeys.bundle })
+      queryClient.invalidateQueries({ queryKey: settingsKeys.bundle })
     },
   })
 }
@@ -88,7 +81,7 @@ export function useDeletePersonaAvatar() {
   return useMutation({
     mutationFn: deletePersonaAvatar,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: personaKeys.bundle })
+      queryClient.invalidateQueries({ queryKey: settingsKeys.bundle })
     },
   })
 }
