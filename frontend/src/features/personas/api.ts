@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiPost, apiPostForm } from '../../api/client'
 import type { SettingsBundleResponse } from '../../api/types'
-import { fetchSettingsBundle, settingsKeys, useSettingsBundle } from '../settings/api'
+import { settingsKeys, useSettingsBundle } from '../settings/api'
 import { readPersonaState, writePersonaState } from './utils'
 import type { PersonaState } from './types'
 
@@ -11,10 +11,6 @@ export const personaKeys = {
 
 export { useSettingsBundle as usePersonaBundle }
 export type { SettingsBundleResponse }
-
-export async function fetchPersonaBundle(): Promise<SettingsBundleResponse> {
-  return fetchSettingsBundle()
-}
 
 export interface PersonaUploadResponse {
   path: string

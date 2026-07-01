@@ -1,56 +1,48 @@
-import { useEffect, useState, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { LoadingState, ErrorState } from '../../../components/ui'
 import type { Persona, PersonaState } from '../types'
 import {
-  deletePersonaAvatar,
-  fetchPersonaBundle,
+  useDeletePersonaAvatar,
+  usePersonaBundle,
+  useSavePersonaState,
+  useUploadPersonaAvatar,
   parsePersonaBundle,
-  savePersonaBundle,
-  uploadPersonaAvatar,
-  type SettingsBundleResponse,
 } from '../api'
+import type { SettingsBundleResponse } from '../../../api/types'
 import {
   generatePersonaId,
   getPersonaAvatarUrl,
 } from '../utils'
 
 function Personas() {
-  const [state, setState] = useState<PersonaState>({ personas: [], defaultId: null })
-  const [bundle, setBundle] = useState<SettingsBundleResponse | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const loadSettings = async () => {
-    const data = await fetchPersonaBundle()
-    setBundle(data)
-    setState(parsePersonaBundle(data))
-  }
+  const bundleQuery = usePersonaBundle()
+  const savePersonaMutation = useSavePersonaState()
+  const uploadAvatarMutation = useUploadPersonaAvatar()
+  const deleteAvatarMutation = useDeletePersonaAvatar()
 
-  useEffect(() => {
-    loadSettings()
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load personas'))
-      .finally(() => setLoading(false))
-  }, [])
+  const bundle: SettingsBundleResponse | null = bundleQuery.data ?? null
+  const state = useMemo(() => parsePersonaBundle(bundle), [bundle])
+  const loading = bundleQuery.isLoading
+  const saving =
+    savePersonaMutation.isPending ||
+    uploadAvatarMutation.isPending ||
+    deleteAvatarMutation.isPending
 
   const persistState = async (nextState: PersonaState) => {
-    setSaving(true)
-    setSaveMessage(null)
     setError(null)
+    setSaveMessage(null)
     try {
-      const nextBundle = await savePersonaBundle({ currentBundle: bundle, state: nextState })
-      setBundle(nextBundle)
-      setState(nextState)
+      await savePersonaMutation.mutateAsync({ currentBundle: bundle, state: nextState })
       setSaveMessage('Personas saved')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save personas')
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -59,10 +51,9 @@ function Personas() {
     if (!name.trim() || !file) return
 
     try {
-      setSaving(true)
-      setSaveMessage(null)
       setError(null)
-      const avatar = await uploadPersonaAvatar(file)
+      setSaveMessage(null)
+      const avatar = await uploadAvatarMutation.mutateAsync(file)
       const newPersona: Persona = {
         id: generatePersonaId(),
         name: name.trim(),
@@ -73,14 +64,13 @@ function Personas() {
         personas: [...state.personas, newPersona],
         defaultId: state.defaultId || newPersona.id,
       }
-      await persistState(nextState)
+      await savePersonaMutation.mutateAsync({ currentBundle: bundle, state: nextState })
       setName('')
       setDescription('')
       setFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create persona')
-      setSaving(false)
     }
   }
 
@@ -91,12 +81,15 @@ function Personas() {
   const handleDelete = async (persona: Persona) => {
     if (!window.confirm(`Delete persona "${persona.name}"?`)) return
     try {
-      await deletePersonaAvatar(persona.avatar)
+      await deleteAvatarMutation.mutateAsync(persona.avatar)
       const nextPersonas = state.personas.filter((p) => p.id !== persona.id)
       const nextDefaultId = state.defaultId === persona.id
         ? (nextPersonas[0]?.id || null)
         : state.defaultId
-      await persistState({ personas: nextPersonas, defaultId: nextDefaultId })
+      await savePersonaMutation.mutateAsync({
+        currentBundle: bundle,
+        state: { personas: nextPersonas, defaultId: nextDefaultId },
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete persona')
     }
