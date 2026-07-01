@@ -19,6 +19,8 @@ import {
   pickNextSpeaker,
 } from '../utils'
 import type { Group } from '../types'
+
+const EMPTY_MEMBERS: Character[] = []
 import {
   getDefaultPersona,
   getPersonaAvatarUrl,
@@ -97,7 +99,7 @@ export function useGroupChat(): UseGroupChatResult {
 
   // Derived
   const group = groupQuery.data ?? null
-  const members = membersQuery.data ?? []
+  const members = membersQuery.data ?? EMPTY_MEMBERS
   const connection = useMemo<ConnectionSettings>(() => {
     const raw = settingsBundleQuery.data?.settings
     if (!raw) return DEFAULT_CONNECTION

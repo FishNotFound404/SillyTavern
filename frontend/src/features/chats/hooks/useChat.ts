@@ -33,6 +33,8 @@ import {
   generateChatFileName,
   stripThinkTags,
 } from '../utils'
+
+const EMPTY_CHAT_FILES: ChatFile[] = []
 import { useCharacter } from '../../characters/api'
 import {
   useCharacterChats,
@@ -136,7 +138,7 @@ export function useChat(): UseChatResult {
 
   // Derived
   const character = characterQuery.data ?? null
-  const chatFiles = chatsQuery.data ?? []
+  const chatFiles = chatsQuery.data ?? EMPTY_CHAT_FILES
   const connection = useMemo<ConnectionSettings>(() => {
     const raw = settingsBundleQuery.data?.settings
     if (!raw) return DEFAULT_CONNECTION

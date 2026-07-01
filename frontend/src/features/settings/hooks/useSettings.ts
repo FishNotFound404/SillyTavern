@@ -30,6 +30,9 @@ import type {
   SecretState,
 } from '../types'
 
+const EMPTY_SECRETS: SecretState = {}
+const EMPTY_PRESETS: GenerationPreset[] = []
+
 export interface UseSettingsResult {
   // State
   backend: BackendStatus
@@ -107,7 +110,7 @@ export function useSettings(): UseSettingsResult {
     }
   }, [bundleQuery.data, connectionInitialized])
 
-  const secrets: SecretState = secretsQuery.data || {}
+  const secrets: SecretState = secretsQuery.data ?? EMPTY_SECRETS
   const activeSecretKey = getProviderConfig(connection.provider).secretKey
   const isModelConfigurable = isSecretConfigured(secrets, activeSecretKey)
 
@@ -150,7 +153,7 @@ export function useSettings(): UseSettingsResult {
     connection.model,
   ])
 
-  const presets: GenerationPreset[] = presetsQuery.data?.presets || []
+  const presets: GenerationPreset[] = presetsQuery.data?.presets ?? EMPTY_PRESETS
   const presetNames: string[] = presetsQuery.data?.names || []
 
   const backend: BackendStatus = backendQuery.data || { online: false }
