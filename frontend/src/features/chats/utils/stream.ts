@@ -1,4 +1,4 @@
-import { initCsrfToken } from '../../../api/client'
+import { getCsrfToken, initCsrfToken } from '../../../api/client'
 import { extractStreamDelta } from '../../settings/utils'
 
 function splitSseEvents(text: string): { events: string[]; remainder: string } {
@@ -54,13 +54,7 @@ export async function* streamCompletion(
   signal?: AbortSignal,
 ): AsyncGenerator<string> {
   await initCsrfToken()
-
-  const tokenResponse = await fetch('/csrf-token')
-  let csrfToken: string | undefined
-  if (tokenResponse.ok) {
-    const tokenData = (await tokenResponse.json()) as { token?: string }
-    csrfToken = tokenData.token
-  }
+  const csrfToken = getCsrfToken() ?? undefined
 
   const response = await fetch(endpoint, {
     method: 'POST',
