@@ -43,7 +43,13 @@ function Navigation() {
         <div className={`${menuOpen ? 'block' : 'hidden'} md:block pb-4`}>
           <div className="flex flex-col md:flex-row md:items-center md:gap-2">
             {links.map((link) => (
-              <NavLink key={link.to} to={link.to} end={link.end} className={linkClass}>
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.end}
+                className={linkClass}
+                onClick={() => setMenuOpen(false)}
+              >
                 {link.label}
               </NavLink>
             ))}
