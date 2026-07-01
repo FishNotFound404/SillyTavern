@@ -1,39 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiPost } from '../../../api/client'
 import { EmptyState, ErrorState, LoadingState } from '../../../components/ui'
-import type { Character } from '../../characters/types'
-import { createGroup } from '../api'
+import { useCharacters } from '../../characters/api'
+import { useCreateGroup } from '../api'
 
 function GroupEdit() {
   const navigate = useNavigate()
-  const [characters, setCharacters] = useState<Character[]>([])
+  const charactersQuery = useCharacters()
+  const createGroupMutation = useCreateGroup()
+
   const [name, setName] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [allowSelfResponses, setAllowSelfResponses] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    apiPost<Character[]>('/api/characters/all', {})
-      .then((data) => {
-        if (cancelled) return
-        setCharacters(data || [])
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Failed to load characters')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const characters = charactersQuery.data ?? []
+  const loading = charactersQuery.isLoading
+  const charactersError = charactersQuery.error?.message ?? null
 
   const toggleMember = (avatar: string) => {
     setSelected((prev) => {
@@ -51,10 +34,8 @@ function GroupEdit() {
       return
     }
 
-    setSaving(true)
-    setError(null)
     try {
-      const group = await createGroup({
+      const group = await createGroupMutation.mutateAsync({
         name: name.trim(),
         members: Array.from(selected),
         allow_self_responses: allowSelfResponses,
@@ -62,12 +43,19 @@ function GroupEdit() {
       navigate(`/chat?group=${encodeURIComponent(group.id)}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create group')
-      setSaving(false)
     }
   }
 
   if (loading) return <LoadingState message="Loading characters..." />
-  if (error && characters.length === 0) return <ErrorState title="Failed to load characters" message={error} onRetry={() => window.location.reload()} />
+  if (charactersError && characters.length === 0) {
+    return (
+      <ErrorState
+        title="Failed to load characters"
+        message={charactersError}
+        onRetry={() => charactersQuery.refetch()}
+      />
+    )
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -147,17 +135,17 @@ function GroupEdit() {
           <button
             type="button"
             onClick={() => navigate('/groups')}
-            disabled={saving}
+            disabled={createGroupMutation.isPending}
             className="px-5 py-2.5 text-gray-300 hover:text-white disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={saving || !name.trim() || selected.size === 0}
+            disabled={createGroupMutation.isPending || !name.trim() || selected.size === 0}
             className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {saving ? 'Creating...' : 'Create Group'}
+            {createGroupMutation.isPending ? 'Creating...' : 'Create Group'}
           </button>
         </div>
       </form>
