@@ -1,55 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { REACT_URL, LEGACY_URL } from '../playwright.config'
 
-async function getCsrfToken(baseUrl: string): Promise<string> {
-  const response = await fetch(`${baseUrl}/csrf-token`)
-  if (!response.ok) {
-    throw new Error(`Failed to get CSRF token from ${baseUrl}`)
-  }
-  const data = (await response.json()) as { token?: string }
-  return data.token || ''
-}
-
-async function fetchReactCharacterNames(): Promise<string[]> {
-  const csrfToken = await getCsrfToken(REACT_URL)
-  const response = await fetch(`${REACT_URL}/api/characters/all`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({}),
-  })
-  if (!response.ok) {
-    throw new Error(`React API returned ${response.status}`)
-  }
-  const data = (await response.json()) as Array<{ name?: string; avatar?: string }>
-  return data
-    .map((c) => (c.name ?? '').trim())
-    .filter((name) => name.length > 0)
-    .sort()
-}
-
-async function fetchLegacyCharacterNames(): Promise<string[]> {
-  const csrfToken = await getCsrfToken(LEGACY_URL)
-  const response = await fetch(`${LEGACY_URL}/api/characters/all`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({}),
-  })
-  if (!response.ok) {
-    throw new Error(`Legacy API returned ${response.status}`)
-  }
-  const data = (await response.json()) as Array<{ name?: string; avatar?: string }>
-  return data
-    .map((c) => (c.name ?? '').trim())
-    .filter((name) => name.length > 0)
-    .sort()
-}
-
 async function readReactCharacterNamesFromDom(page: Page): Promise<string[]> {
   await page.goto('/')
   const heading = page.locator('h1', { hasText: 'Characters' })
@@ -87,13 +38,70 @@ test.describe('Cross-frontend equivalence', () => {
       'Run only when both servers are available locally.',
     )
 
-    let reactApiNames: string[]
-    let legacyApiNames: string[]
+    const reactApiNames: string[] = []
+    const legacyApiNames: string[] = []
+
     try {
-      ;[reactApiNames, legacyApiNames] = await Promise.all([
-        fetchReactCharacterNames(),
-        fetchLegacyCharacterNames(),
-      ])
+      // Use browser context to establish session and get CSRF token
+      const context = await browser.newContext()
+
+      // Get CSRF token and fetch from React frontend
+      const reactPage = await context.newPage()
+      await reactPage.goto(REACT_URL)
+      const reactCsrfResponse = await reactPage.evaluate(async () => {
+        const res = await fetch('/csrf-token')
+        return await res.json()
+      })
+      const reactCsrfToken = reactCsrfResponse.token
+
+      const reactApiResponse = await reactPage.evaluate(async (csrfToken: string) => {
+        const res = await fetch('/api/characters/all', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
+          },
+          body: JSON.stringify({}),
+        })
+        return await res.json()
+      }, reactCsrfToken)
+
+      reactApiNames.push(
+        ...(reactApiResponse as Array<{ name?: string; avatar?: string }>)
+          .map((c) => (c.name ?? '').trim())
+          .filter((name) => name.length > 0)
+          .sort()
+      )
+
+      // Get CSRF token and fetch from Legacy frontend
+      const legacyPage = await context.newPage()
+      await legacyPage.goto(LEGACY_URL)
+      const legacyCsrfResponse = await legacyPage.evaluate(async () => {
+        const res = await fetch('/csrf-token')
+        return await res.json()
+      })
+      const legacyCsrfToken = legacyCsrfResponse.token
+
+      const legacyApiResponse = await legacyPage.evaluate(async (csrfToken: string) => {
+        const res = await fetch('/api/characters/all', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
+          },
+          body: JSON.stringify({}),
+        })
+        return await res.json()
+      }, legacyCsrfToken)
+
+      legacyApiNames.push(
+        ...(legacyApiResponse as Array<{ name?: string; avatar?: string }>)
+          .map((c) => (c.name ?? '').trim())
+          .filter((name) => name.length > 0)
+          .sort()
+      )
+
+      await context.close()
     } catch (error) {
       throw new Error(
         `Backend unreachable. Start the backend ('npm start' at repo root) and both dev servers (React: 'npm run dev' in frontend/, legacy served by backend on port 8000) before running E2E tests.\nUnderlying error: ${(error as Error).message}`,
