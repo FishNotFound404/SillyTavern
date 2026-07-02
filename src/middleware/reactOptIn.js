@@ -14,7 +14,11 @@ function readCookieValue(cookieHeader) {
         if (eq < 0) continue;
         const name = part.slice(0, eq).trim();
         if (name === COOKIE_NAME) {
-            return decodeURIComponent(part.slice(eq + 1).trim());
+            try {
+                return decodeURIComponent(part.slice(eq + 1).trim());
+            } catch {
+                return undefined;
+            }
         }
     }
     return undefined;
