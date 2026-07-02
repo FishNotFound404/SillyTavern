@@ -51,6 +51,28 @@ Long-running generation requests use `streamCompletion` from `features/chats/uti
 
 `public/` contains the jQuery frontend. Both frontends coexist; the legacy one is the default Express entry point. The React frontend runs on `http://localhost:5173` in dev. Production cut-over is tracked separately.
 
+## 测试覆盖
+
+### 单元测试 (Vitest + RTL)
+- **85个测试**覆盖所有domain hooks
+- 测试关键功能：API调用、错误处理、缓存失效
+- 使用MSW (Mock Service Worker)拦截API请求
+
+### E2E测试 (Playwright)
+- **16个测试**覆盖核心页面
+- 跨前端等价性验证：character-list测试证明React前端完全替代Legacy前端
+- 页面测试：ChatList、GroupEdit、Settings、WorldInfo
+- 测试用户交互和导航流程
+
+### 运行测试
+```bash
+# 单元测试
+npm test
+
+# E2E测试 (需要后端服务器运行)
+npm run e2e
+```
+
 ## Production Deployment
 
 ### Build
