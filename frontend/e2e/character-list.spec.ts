@@ -1,10 +1,23 @@
 import { test, expect, type Page } from '@playwright/test'
 import { REACT_URL, LEGACY_URL } from '../playwright.config'
 
+async function getCsrfToken(baseUrl: string): Promise<string> {
+  const response = await fetch(`${baseUrl}/csrf-token`)
+  if (!response.ok) {
+    throw new Error(`Failed to get CSRF token from ${baseUrl}`)
+  }
+  const data = (await response.json()) as { token?: string }
+  return data.token || ''
+}
+
 async function fetchReactCharacterNames(): Promise<string[]> {
+  const csrfToken = await getCsrfToken(REACT_URL)
   const response = await fetch(`${REACT_URL}/api/characters/all`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
+    },
     body: JSON.stringify({}),
   })
   if (!response.ok) {
@@ -18,9 +31,13 @@ async function fetchReactCharacterNames(): Promise<string[]> {
 }
 
 async function fetchLegacyCharacterNames(): Promise<string[]> {
+  const csrfToken = await getCsrfToken(LEGACY_URL)
   const response = await fetch(`${LEGACY_URL}/api/characters/all`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
+    },
     body: JSON.stringify({}),
   })
   if (!response.ok) {
