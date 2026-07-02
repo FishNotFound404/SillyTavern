@@ -84,9 +84,11 @@ describe('useRenameChat', () => {
     mockedApiPost.mockResolvedValue({ ok: true })
   })
 
-  it('calls apiPost with /api/chats/rename and invalidates the character chat query', async () => {
-    const characterKey = chatKeys.character('alice')
-    queryClient.setQueryData(characterKey, [])
+  it('calls apiPost with /api/chats/rename and broadly invalidates chatKeys.all so chat lists refetch', async () => {
+    const aliceKey = chatKeys.character('alice')
+    const bobKey = chatKeys.character('bob')
+    queryClient.setQueryData(aliceKey, [])
+    queryClient.setQueryData(bobKey, [])
 
     const { result } = renderHook(() => useRenameChat(), {
       wrapper: createWrapper(queryClient),
@@ -106,7 +108,8 @@ describe('useRenameChat', () => {
     })
 
     await waitFor(() => {
-      expect(queryClient.getQueryState(characterKey)?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(aliceKey)?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(bobKey)?.isInvalidated).toBe(true)
     })
   })
 })
@@ -125,9 +128,11 @@ describe('useDeleteChat', () => {
     mockedApiPost.mockResolvedValue({ ok: true })
   })
 
-  it('calls apiPost with /api/chats/delete and invalidates the character chat query', async () => {
-    const characterKey = chatKeys.character('alice')
-    queryClient.setQueryData(characterKey, [])
+  it('calls apiPost with /api/chats/delete and broadly invalidates chatKeys.all so chat lists refetch', async () => {
+    const aliceKey = chatKeys.character('alice')
+    const bobKey = chatKeys.character('bob')
+    queryClient.setQueryData(aliceKey, [])
+    queryClient.setQueryData(bobKey, [])
 
     const { result } = renderHook(() => useDeleteChat(), {
       wrapper: createWrapper(queryClient),
@@ -145,7 +150,8 @@ describe('useDeleteChat', () => {
     })
 
     await waitFor(() => {
-      expect(queryClient.getQueryState(characterKey)?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(aliceKey)?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(bobKey)?.isInvalidated).toBe(true)
     })
   })
 })
@@ -191,7 +197,10 @@ describe('useExportChat', () => {
       exportfilename: 'exported.jsonl',
     })
 
-    expect(queryClient.getQueryState(chatKeys.all)?.isInvalidated).toBeFalsy()
-    expect(queryClient.getQueryState(sessionKey)?.isInvalidated).toBeFalsy()
+    for (const q of queryClient.getQueryCache().getAll()) {
+      expect(q.state.isInvalidated).toBe(false)
+    }
   })
 })
+
+
