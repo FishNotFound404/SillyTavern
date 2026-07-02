@@ -177,18 +177,19 @@ describe('ChatList', () => {
     expect(dateTexts[1]).not.toBeNull()
     expect(dateTexts[2]).not.toBeNull()
 
-    const t0 = new Date(dateTexts[0]!).getTime()
-    const t1 = new Date(dateTexts[1]!).getTime()
-    const t2 = new Date(dateTexts[2]!).getTime()
-
-    if (isNaN(t0) || isNaN(t1) || isNaN(t2)) {
-      expect(dateTexts[0]).toMatch(/\d/)
-      expect(dateTexts[1]).toMatch(/\d/)
-      expect(dateTexts[2]).toMatch(/\d/)
-    } else {
-      expect(t0).toBeGreaterThanOrEqual(t1)
-      expect(t1).toBeGreaterThanOrEqual(t2)
+    const formatTestDate = (fileName: string) => {
+      const match = fileName.match(/(\d{4})-(\d{2})-(\d{2})@(\d{2})h(\d{2})m(\d{2})s(\d+)ms/)
+      if (!match) return ''
+      const [, year, month, day, hour, minute] = match
+      const date = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`)
+      return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     }
+
+    expect(dateTexts).toEqual([
+      formatTestDate('2026-01-20@10h00m00s000ms.jsonl'),
+      formatTestDate('2026-01-10@10h00m00s000ms.jsonl'),
+      formatTestDate('2026-01-01@10h00m00s000ms.jsonl'),
+    ])
   })
 
   it('navigates to chat view on chat item click', async () => {

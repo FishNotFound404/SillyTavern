@@ -8,7 +8,7 @@ vi.mock('../hooks/useSettings', () => ({
   useSettings: vi.fn(),
 }))
 
-const mockUseSettings = useSettings as ReturnType<typeof vi.fn>
+const mockUseSettings = vi.mocked(useSettings)
 
 const defaultSettingsState = {
   backend: { online: false },

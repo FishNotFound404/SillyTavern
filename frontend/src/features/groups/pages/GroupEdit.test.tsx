@@ -37,7 +37,7 @@ function mockCharactersLoading() {
     data: undefined,
     error: null,
     refetch: vi.fn(),
-  } as any)
+  } as unknown as ReturnType<typeof useCharacters>)
 }
 
 function mockCharactersData(characters: Character[]) {
@@ -48,7 +48,7 @@ function mockCharactersData(characters: Character[]) {
     data: characters,
     error: null,
     refetch: vi.fn(),
-  } as any)
+  } as unknown as ReturnType<typeof useCharacters>)
 }
 
 function mockCreateGroupDefault() {
@@ -57,7 +57,7 @@ function mockCreateGroupDefault() {
     isPending: false,
     isError: false,
     error: null,
-  } as any)
+  } as unknown as ReturnType<typeof useCreateGroup>)
 }
 
 function mockCreateGroupPending() {
@@ -66,7 +66,7 @@ function mockCreateGroupPending() {
     isPending: true,
     isError: false,
     error: null,
-  } as any)
+  } as unknown as ReturnType<typeof useCreateGroup>)
 }
 
 function mockCreateGroupError(message: string) {
@@ -75,7 +75,7 @@ function mockCreateGroupError(message: string) {
     isPending: false,
     isError: false,
     error: null,
-  } as any)
+  } as unknown as ReturnType<typeof useCreateGroup>)
 }
 
 describe('GroupEdit page', () => {
@@ -106,7 +106,7 @@ describe('GroupEdit page', () => {
       data: undefined,
       error: { message: 'Network error' },
       refetch: refetchFn,
-    } as any)
+    } as unknown as ReturnType<typeof useCharacters>)
 
     renderPage()
 
@@ -160,20 +160,25 @@ describe('GroupEdit page', () => {
     mockCreateGroupDefault()
     renderPage()
 
+    await user.type(screen.getByLabelText('Group Name'), 'Test Group')
+    const submitBtn = screen.getByRole('button', { name: 'Create Group' })
+
+    expect(submitBtn).toBeDisabled()
+
     const aliceBtn = screen.getByText('Alice').closest('button')!
     const bobBtn = screen.getByText('Bob').closest('button')!
 
     await user.click(aliceBtn)
-    expect(aliceBtn.className).toContain('bg-blue-900/30')
-    expect(aliceBtn.className).toContain('border-blue-500')
+    expect(submitBtn).toBeEnabled()
 
     await user.click(bobBtn)
-    expect(bobBtn.className).toContain('bg-blue-900/30')
-    expect(bobBtn.className).toContain('border-blue-500')
+    expect(submitBtn).toBeEnabled()
 
     await user.click(aliceBtn)
-    expect(aliceBtn.className).not.toContain('bg-blue-900/30')
-    expect(aliceBtn.className).not.toContain('border-blue-500')
+    expect(submitBtn).toBeEnabled()
+
+    await user.click(bobBtn)
+    expect(submitBtn).toBeDisabled()
   })
 
   it('disables submit when name is empty but member selected', async () => {
@@ -207,7 +212,7 @@ describe('GroupEdit page', () => {
       isPending: false,
       isError: false,
       error: null,
-    } as any)
+    } as unknown as ReturnType<typeof useCreateGroup>)
 
     const navigateFn = vi.fn()
     mockUseNavigate.mockReturnValue(navigateFn)
@@ -235,7 +240,7 @@ describe('GroupEdit page', () => {
       isPending: false,
       isError: false,
       error: null,
-    } as any)
+    } as unknown as ReturnType<typeof useCreateGroup>)
 
     const navigateFn = vi.fn()
     mockUseNavigate.mockReturnValue(navigateFn)
