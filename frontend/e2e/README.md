@@ -45,7 +45,5 @@ npm run e2e:ui     # interactive Playwright UI
 
 ## Known limitations
 
-- Chromium only.
-- No CI hook — tests are run manually.
+- Chromium only; no CI hook — tests run manually.
 - Assumes both servers are started by the developer.
-- Tests depend on a healthy backend; an empty character list skips rather than fails.

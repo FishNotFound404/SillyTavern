@@ -49,7 +49,7 @@ async function readReactCharacterNamesFromDom(page: Page): Promise<string[]> {
 }
 
 async function readLegacyCharacterNamesFromDom(page: Page): Promise<string[]> {
-  await page.goto('/')
+  await page.goto(LEGACY_URL)
   const list = page.locator('#rm_print_characters_block')
   await expect(list).toBeVisible({ timeout: 15_000 })
   await page.waitForLoadState('networkidle')
