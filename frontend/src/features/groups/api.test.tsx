@@ -28,17 +28,14 @@ function createAliceCharacter() {
     creator_notes: '',
     system_prompt: '',
     post_history_instructions: '',
-    alternate_greetings: [],
     tags: [],
     creator: '',
     avatar: 'alice',
+    chat_size: 0,
     chat: '',
-    fav: false,
-    date_added: 0,
     create_date: '',
     date_last_chat: 0,
     data: {},
-    extensions: {},
   }
 }
 
@@ -53,24 +50,24 @@ describe('useGroupMembers', () => {
   })
 
   it('disables the query when avatars is an empty array (queryFn should not be called)', () => {
-    mockedApiPost.mockResolvedValue(createAliceCharacter())
-
     const { result } = renderHook(() => useGroupMembers([]), {
       wrapper: createWrapper(queryClient),
     })
 
     expect(result.current.fetchStatus).toBe('idle')
+    expect(result.current.isSuccess).toBe(false)
+    expect(result.current.data).toBeUndefined()
     expect(mockedApiPost).not.toHaveBeenCalled()
   })
 
   it('disables the query when avatars is undefined', () => {
-    mockedApiPost.mockResolvedValue(createAliceCharacter())
-
     const { result } = renderHook(() => useGroupMembers(undefined), {
       wrapper: createWrapper(queryClient),
     })
 
     expect(result.current.fetchStatus).toBe('idle')
+    expect(result.current.isSuccess).toBe(false)
+    expect(result.current.data).toBeUndefined()
     expect(mockedApiPost).not.toHaveBeenCalled()
   })
 

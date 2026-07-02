@@ -20,7 +20,6 @@ function createWrapper(queryClient: QueryClient) {
 
 describe('useSaveChat', () => {
   let queryClient: QueryClient
-  let invalidateSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
     queryClient = new QueryClient({
@@ -29,7 +28,6 @@ describe('useSaveChat', () => {
         mutations: { retry: false },
       },
     })
-    invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ ok: true })
   })
@@ -61,11 +59,7 @@ describe('useSaveChat', () => {
     })
 
     await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: sessionKey,
-      })
+      expect(queryClient.getQueryState(sessionKey)?.isInvalidated).toBe(true)
     })
-
-    invalidateSpy.mockRestore()
   })
 })

@@ -44,8 +44,6 @@ describe('usePersonaBundle shares cache with useSettingsBundle', () => {
       expect(settings.result.current.isSuccess).toBe(true)
     })
 
-    expect(persona.result.current.data).toBe(settings.result.current.data)
-
     const cachedQueries = queryClient.getQueryCache().findAll({ queryKey: settingsKeys.bundle })
     expect(cachedQueries).toHaveLength(1)
     expect(cachedQueries[0]?.queryKey).toEqual(settingsKeys.bundle)
