@@ -3,7 +3,7 @@ import path from 'node:path';
 import express from 'express';
 import { serverDirectory } from '../server-directory.js';
 
-const COOKIE_NAME = 'st_use_react';
+const COOKIE_NAME = 'st_use_legacy';
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 function readCookieValue(cookieHeader) {
@@ -25,22 +25,22 @@ function readCookieValue(cookieHeader) {
 }
 
 /**
- * Checks whether the current request has the React frontend opt-in cookie set.
+ * Checks whether the current request has the legacy frontend opt-out cookie set.
  * @param {import('express').Request} request Express request object
- * @returns {boolean} True if the React frontend is opted-in for this request
+ * @returns {boolean} True if the legacy frontend is opted-in for this request
  */
-export function useReact(request) {
+export function useLegacy(request) {
     return readCookieValue(request.headers.cookie) === '1';
 }
 
 /**
- * Express middleware that processes `?react=1` / `?react=0` query parameters
- * to set or clear the opt-in cookie, then redirects to the same path without
+ * Express middleware that processes `?legacy=1` / `?legacy=0` query parameters
+ * to set or clear the opt-out cookie, then redirects to the same path without
  * the query parameter so the URL stays clean.
  * @type {import('express').RequestHandler}
  */
-export function reactOptInMiddleware(request, response, next) {
-    const value = request.query.react;
+export function legacyOptOutMiddleware(request, response, next) {
+    const value = request.query.legacy;
     if (value === undefined) {
         return next();
     }

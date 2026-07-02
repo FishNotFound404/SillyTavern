@@ -53,7 +53,7 @@ import cacheBuster from './middleware/cacheBuster.js';
 import corsProxyMiddleware from './middleware/corsProxy.js';
 import hostWhitelistMiddleware from './middleware/hostWhitelist.js';
 import userCssMiddleware from './middleware/userCss.js';
-import { reactOptInMiddleware, useReact, getReactAssetsMiddleware, getReactDistRootMiddleware, REACT_INDEX_PATH, isReactDistAvailable } from './middleware/reactOptIn.js';
+import { legacyOptOutMiddleware, useLegacy, getReactAssetsMiddleware, getReactDistRootMiddleware, REACT_INDEX_PATH, isReactDistAvailable } from './middleware/reactOptIn.js';
 import {
     getVersion,
     color,
@@ -212,14 +212,15 @@ if (!cliArgs.disableCsrf) {
 
 // Static files
 // Host index page
-app.get('/', reactOptInMiddleware, cacheBuster.middleware, (request, response) => {
+app.get('/', legacyOptOutMiddleware, cacheBuster.middleware, (request, response) => {
     if (shouldRedirectToLogin(request)) {
         const query = request.url.split('?')[1];
         const redirectUrl = query ? `/login?${query}` : '/login';
         return response.redirect(redirectUrl);
     }
 
-    if (useReact(request) && isReactDistAvailable()) {
+    // Default to React frontend, fall back to legacy if opted out
+    if (!useLegacy(request) && isReactDistAvailable()) {
         return response.sendFile(REACT_INDEX_PATH);
     }
 
@@ -247,6 +248,21 @@ app.use(userCssMiddleware);
 app.use('/r-assets', getReactAssetsMiddleware());
 app.use(getReactDistRootMiddleware());
 app.use(express.static(path.join(serverDirectory, 'public'), {}));
+
+// SPA fallback for React Router (must be after static file serving)
+app.get('*', (request, response, next) => {
+    // Skip API routes and static files
+    if (request.path.startsWith('/api/') || request.path.startsWith('/r-assets/')) {
+        return next();
+    }
+
+    // Default to React frontend, fall back to legacy if opted out
+    if (!useLegacy(request) && isReactDistAvailable()) {
+        return response.sendFile(REACT_INDEX_PATH);
+    }
+
+    return response.sendFile('index.html', { root: path.join(serverDirectory, 'public') });
+});
 
 // Public API
 app.use('/api/users', usersPublicRouter);
