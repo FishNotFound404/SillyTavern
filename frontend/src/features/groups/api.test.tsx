@@ -6,6 +6,7 @@ import { apiPost } from '../../api/client'
 import {
   groupKeys,
   useCreateGroup,
+  useDeleteGroup,
   useGroupMembers,
   useUpdateGroup,
 } from './api'
@@ -181,6 +182,38 @@ describe('useUpdateGroup', () => {
 
     await waitFor(() => {
       expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(groupKeys.all)?.isInvalidated).toBe(true)
+    })
+  })
+})
+
+describe('useDeleteGroup', () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    mockedApiPost.mockReset()
+    mockedApiPost.mockResolvedValue({ ok: true })
+  })
+
+  it('calls apiPost with /api/groups/delete and invalidates groupKeys.all', async () => {
+    queryClient.setQueryData(groupKeys.all, [])
+
+    const { result } = renderHook(() => useDeleteGroup(), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync('grp-1')
+
+    expect(mockedApiPost).toHaveBeenCalledTimes(1)
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/groups/delete', { id: 'grp-1' })
+
+    await waitFor(() => {
       expect(queryClient.getQueryState(groupKeys.all)?.isInvalidated).toBe(true)
     })
   })

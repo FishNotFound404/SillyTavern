@@ -7,14 +7,17 @@ import {
   PRESET_API_ID,
   settingsKeys,
   useBackendStatus,
+  useDeletePreset,
   useDeleteSecret,
+  useModels,
   usePresets,
   useSaveConnection,
+  useSavePreset,
   useSecrets,
   useWriteSecret,
 } from './api'
 import { writeConnectionSettings } from './utils'
-import type { ConnectionSettings } from './types'
+import type { ConnectionSettings, GenerationPreset } from './types'
 
 vi.mock('../../api/client', () => ({
   apiGet: vi.fn(),
@@ -233,5 +236,122 @@ describe('useDeleteSecret', () => {
     await waitFor(() => {
       expect(queryClient.getQueryState(settingsKeys.secrets)?.isInvalidated).toBe(true)
     })
+  })
+})
+
+describe('useSavePreset', () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    mockedApiPost.mockReset()
+    mockedApiPost.mockResolvedValue({ name: 'preset-1' })
+  })
+
+  it('calls apiPost with /api/presets/save, embeds name inside preset, and invalidates settingsKeys.presets on settle', async () => {
+    queryClient.setQueryData(settingsKeys.presets, { names: [], presets: [] })
+
+    const { result } = renderHook(() => useSavePreset(), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    const preset: Omit<GenerationPreset, 'name'> = {
+      provider: 'openai',
+      model: 'gpt-4o',
+    }
+
+    const returned = await result.current.mutateAsync({ name: 'preset-1', preset })
+
+    expect(returned).toBe('preset-1')
+    expect(mockedApiPost).toHaveBeenCalledTimes(1)
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/presets/save', {
+      apiId: PRESET_API_ID,
+      name: 'preset-1',
+      preset: { provider: 'openai', model: 'gpt-4o', name: 'preset-1' },
+    })
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(settingsKeys.presets)?.isInvalidated).toBe(true)
+    })
+  })
+})
+
+describe('useDeletePreset', () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    mockedApiPost.mockReset()
+    mockedApiPost.mockResolvedValue({ ok: true })
+  })
+
+  it('calls apiPost with /api/presets/delete and invalidates settingsKeys.presets', async () => {
+    queryClient.setQueryData(settingsKeys.presets, { names: [], presets: [] })
+
+    const { result } = renderHook(() => useDeletePreset(), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync('preset-1')
+
+    expect(mockedApiPost).toHaveBeenCalledTimes(1)
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/presets/delete', {
+      apiId: PRESET_API_ID,
+      name: 'preset-1',
+    })
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(settingsKeys.presets)?.isInvalidated).toBe(true)
+    })
+  })
+})
+
+describe('useModels', () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    mockedApiPost.mockReset()
+  })
+
+  it('disables the query when provider is undefined (queryFn should not be called)', () => {
+    const { result } = renderHook(() => useModels(undefined), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(result.current.isSuccess).toBe(false)
+    expect(result.current.data).toBeUndefined()
+    expect(mockedApiPost).not.toHaveBeenCalled()
+  })
+
+  it('enables the query and calls apiPost with the chat-completions status endpoint for openai', async () => {
+    mockedApiPost.mockResolvedValue({ data: [{ id: 'gpt-4o', name: 'GPT-4o' }] })
+
+    const { result } = renderHook(() => useModels('openai'), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true)
+    })
+
+    expect(mockedApiPost).toHaveBeenCalledTimes(1)
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/backends/chat-completions/status', {
+      chat_completion_source: 'openai',
+    })
+    expect(result.current.data).toEqual([{ id: 'gpt-4o', name: 'GPT-4o' }])
   })
 })
