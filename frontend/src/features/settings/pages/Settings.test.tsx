@@ -34,6 +34,7 @@ const defaultSettingsState = {
   activeSecretKey: 'api_key_minimax',
   isModelConfigurable: false,
   presetNames: [],
+  presets: [],
   selectedPreset: '',
   presetNameInput: '',
   presetLoading: false,

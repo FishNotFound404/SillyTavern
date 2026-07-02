@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CharacterEdit from './CharacterEdit'
 import { useCharacterEdit } from '../hooks/useCharacterEdit'
+import type { UseCharacterEditResult } from '../hooks/useCharacterEdit'
 
 vi.mock('../hooks/useCharacterEdit', () => ({
   useCharacterEdit: vi.fn(),
@@ -37,7 +38,7 @@ vi.mock('../components/CharacterEditActions', () => ({
 
 const mockedUseCharacterEdit = vi.mocked(useCharacterEdit)
 
-const baseMock = {
+const baseMock: UseCharacterEditResult = {
   draft: {
     name: 'Alice',
     description: '',

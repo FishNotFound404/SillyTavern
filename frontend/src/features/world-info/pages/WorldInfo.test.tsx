@@ -30,7 +30,7 @@ function defaultWorldInfos() {
     isLoading: false,
     error: null,
     refetch: vi.fn(),
-  }
+  } as any
 }
 
 function defaultCreateMutation(overrides: Record<string, unknown> = {}) {
@@ -39,7 +39,7 @@ function defaultCreateMutation(overrides: Record<string, unknown> = {}) {
     isPending: false,
     error: null,
     ...overrides,
-  }
+  } as any
 }
 
 function defaultDeleteMutation(overrides: Record<string, unknown> = {}) {
@@ -47,7 +47,7 @@ function defaultDeleteMutation(overrides: Record<string, unknown> = {}) {
     mutateAsync: vi.fn().mockResolvedValue(undefined),
     error: null,
     ...overrides,
-  }
+  } as any
 }
 
 describe('WorldInfo page', () => {
@@ -89,7 +89,7 @@ describe('WorldInfo page', () => {
       isLoading: true,
       error: null,
       refetch: vi.fn(),
-    })
+    } as any)
 
     renderPage()
     expect(screen.getByText('Loading world info...')).toBeInTheDocument()
@@ -99,9 +99,9 @@ describe('WorldInfo page', () => {
     mockUseWorldInfos.mockReturnValue({
       data: [],
       isLoading: false,
-      error: { message: 'Network error' },
+      error: { message: 'Network error' } as any,
       refetch: vi.fn(),
-    })
+    } as any)
 
     renderPage()
     expect(screen.getByText(/Couldn.t load world info/)).toBeInTheDocument()
@@ -110,7 +110,7 @@ describe('WorldInfo page', () => {
 
   it('shows delete mutation error state', () => {
     mockUseDeleteWorldInfo.mockReturnValue(
-      defaultDeleteMutation({ error: { message: 'Failed to delete' } }),
+      defaultDeleteMutation({ error: { message: 'Failed to delete' } as any }),
     )
 
     renderPage()
@@ -124,7 +124,7 @@ describe('WorldInfo page', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    })
+    } as any)
 
     renderPage()
     expect(screen.getByText('No world info yet')).toBeInTheDocument()
@@ -142,7 +142,7 @@ describe('WorldInfo page', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    })
+    } as any)
 
     renderPage()
     expect(screen.getByText('My World')).toBeInTheDocument()
@@ -156,7 +156,7 @@ describe('WorldInfo page', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    })
+    } as any)
 
     renderPage()
     await user.click(screen.getByText('Test'))
@@ -220,9 +220,9 @@ describe('WorldInfo page', () => {
     mockUseWorldInfos.mockReturnValue({
       data: [],
       isLoading: false,
-      error: { message: 'Network error' },
+      error: { message: 'Network error' } as any,
       refetch,
-    })
+    } as any)
 
     renderPage()
     await user.click(screen.getByRole('button', { name: /try again/i }))
