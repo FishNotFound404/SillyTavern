@@ -50,3 +50,34 @@ Long-running generation requests use `streamCompletion` from `features/chats/uti
 ## Legacy Frontend
 
 `public/` contains the jQuery frontend. Both frontends coexist; the legacy one is the default Express entry point. The React frontend runs on `http://localhost:5173` in dev. Production cut-over is tracked separately.
+
+## Production Deployment
+
+### Build
+
+```bash
+cd frontend && npm run build
+```
+
+Produces `frontend/dist/` with `index.html`, `favicon.svg`, `icons.svg`, and `r-assets/` (hashed JS/CSS bundles).
+
+### Express integration
+
+- React assets are served at `/r-assets/*` (hashed, immutable, 7-day cache)
+- `favicon.svg` and `icons.svg` are served from the dist root via fallthrough static middleware
+- The legacy `public/` static mount is unchanged
+
+### Opt-in mechanism
+
+- Visit `/?react=1` to set the `st_use_react` cookie (30-day expiry, HttpOnly, SameSite=Lax)
+- Visit `/?react=0` to clear the cookie and return to the legacy frontend
+- Default: legacy frontend (no cookie = no React)
+- The query parameter is consumed by `reactOptInMiddleware` which redirects to the clean URL after setting/clearing the cookie
+
+### Removing legacy (future)
+
+Once the React frontend is the default:
+1. Change `useReact()` to return `true` by default (or invert the cookie to `st_use_legacy`)
+2. Remove the `public/` static mount and the `shouldRedirectToLogin` / `loginPageMiddleware` references
+3. Drop `reactOptInMiddleware` and the `?react=` query param handling
+4. Delete `public/` and the webpack build pipeline
