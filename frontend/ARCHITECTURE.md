@@ -49,7 +49,7 @@ Long-running generation requests use `streamCompletion` from `features/chats/uti
 
 ## Legacy Frontend
 
-`public/` contains the jQuery frontend. Both frontends coexist; the legacy one is the default Express entry point. The React frontend runs on `http://localhost:5173` in dev. Production cut-over is tracked separately.
+`public/` contains the jQuery frontend. The React frontend is now the default and is served from `frontend/dist/`. The legacy frontend can be accessed by visiting `/?legacy=1` to set the `st_use_legacy` cookie.
 
 ## 测试覆盖
 
@@ -89,17 +89,16 @@ Produces `frontend/dist/` with `index.html`, `favicon.svg`, `icons.svg`, and `r-
 - `favicon.svg` and `icons.svg` are served from the dist root via fallthrough static middleware
 - The legacy `public/` static mount is unchanged
 
-### Opt-in mechanism
+### Opt-out mechanism
 
-- Visit `/?react=1` to set the `st_use_react` cookie (30-day expiry, HttpOnly, SameSite=Lax)
-- Visit `/?react=0` to clear the cookie and return to the legacy frontend
-- Default: legacy frontend (no cookie = no React)
-- The query parameter is consumed by `reactOptInMiddleware` which redirects to the clean URL after setting/clearing the cookie
+- Visit `/?legacy=1` to set the `st_use_legacy` cookie (30-day expiry, HttpOnly, SameSite=Lax) and switch to the legacy frontend
+- Visit `/?legacy=0` to clear the cookie and return to the React frontend
+- Default: React frontend (no cookie = React)
+- The query parameter is consumed by `legacyOptOutMiddleware` which redirects to the clean URL after setting/clearing the cookie
 
 ### Removing legacy (future)
 
-Once the React frontend is the default:
-1. Change `useReact()` to return `true` by default (or invert the cookie to `st_use_legacy`)
-2. Remove the `public/` static mount and the `shouldRedirectToLogin` / `loginPageMiddleware` references
-3. Drop `reactOptInMiddleware` and the `?react=` query param handling
-4. Delete `public/` and the webpack build pipeline
+Once the legacy frontend is no longer needed:
+1. Remove the `public/` static mount and the `shouldRedirectToLogin` / `loginPageMiddleware` references
+2. Drop `legacyOptOutMiddleware` and the `?legacy=` query param handling
+3. Delete `public/` and the webpack build pipeline
