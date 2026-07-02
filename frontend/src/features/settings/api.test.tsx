@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 import { apiGet, apiPost } from '../../api/client'
+import { createTestQueryClient } from '../../test/utils'
+import { createWrapper } from '../../test/test-wrapper'
 import {
   PRESET_API_ID,
   settingsKeys,
@@ -27,19 +28,11 @@ vi.mock('../../api/client', () => ({
 const mockedApiGet = vi.mocked(apiGet)
 const mockedApiPost = vi.mocked(apiPost)
 
-function createWrapper(queryClient: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  )
-}
-
 describe('useBackendStatus', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
+    queryClient = createTestQueryClient()
     mockedApiGet.mockReset()
   })
 
@@ -78,9 +71,7 @@ describe('useSecrets', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({})
   })
@@ -103,9 +94,7 @@ describe('usePresets', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ names: [], presets: [] })
   })
@@ -128,12 +117,7 @@ describe('useSaveConnection', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ ok: true })
   })
@@ -172,12 +156,7 @@ describe('useWriteSecret', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ ok: true })
   })
@@ -208,12 +187,7 @@ describe('useDeleteSecret', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ ok: true })
   })
@@ -243,12 +217,7 @@ describe('useSavePreset', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ name: 'preset-1' })
   })
@@ -285,12 +254,7 @@ describe('useDeletePreset', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ ok: true })
   })
@@ -320,9 +284,7 @@ describe('useModels', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
   })
 

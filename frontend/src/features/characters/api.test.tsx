@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 import { apiPost, apiPostForm } from '../../api/client'
+import { createTestQueryClient } from '../../test/utils'
+import { createWrapper } from '../../test/test-wrapper'
 import {
   characterKeys,
   useAssociateWorld,
@@ -18,22 +19,11 @@ vi.mock('../../api/client', () => ({
 const mockedApiPost = vi.mocked(apiPost)
 const mockedApiPostForm = vi.mocked(apiPostForm)
 
-function createWrapper(queryClient: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  )
-}
-
 describe('useCreateCharacter', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPostForm.mockReset()
     mockedApiPostForm.mockResolvedValue('alice')
   })
@@ -65,12 +55,7 @@ describe('useUpdateCharacter', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPostForm.mockReset()
     mockedApiPostForm.mockResolvedValue({ ok: true })
   })
@@ -105,12 +90,7 @@ describe('useAssociateWorld', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ ok: true })
   })

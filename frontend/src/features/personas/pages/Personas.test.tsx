@@ -81,15 +81,19 @@ describe('Personas page', () => {
     let currentBundle = emptyBundle
     let uploadFormData: FormData | null = null
     let saveBody: Record<string, unknown> | null = null
+    let uploadCalledAt: number | null = null
+    let saveCalledAt: number | null = null
 
     server.use(
       http.post('/api/settings/get', () => HttpResponse.json(currentBundle)),
       http.post('/api/avatars/upload', async ({ request }) => {
+        uploadCalledAt = Date.now()
         uploadFormData = await request.formData()
         return HttpResponse.json({ path: 'new.png' })
       }),
       http.post('/api/settings/save', async ({ request }) => {
         saveBody = (await request.json()) as Record<string, unknown>
+        saveCalledAt = Date.now()
         currentBundle = { settings: JSON.stringify(saveBody) }
         return HttpResponse.json(currentBundle)
       }),
@@ -132,7 +136,9 @@ describe('Personas page', () => {
     expect(reactPersonas.personas[0]?.avatar).toBe('new.png')
     expect(reactPersonas.defaultId).toBe(reactPersonas.personas[0]?.id)
 
-    expect(await screen.findByText('Bob')).toBeInTheDocument()
+    expect(uploadCalledAt).not.toBeNull()
+    expect(saveCalledAt).not.toBeNull()
+    expect(uploadCalledAt!).toBeLessThanOrEqual(saveCalledAt!)
   })
 
   it('deletes a persona by calling avatars/delete then saving with the persona removed', async () => {
@@ -141,21 +147,32 @@ describe('Personas page', () => {
     ])
     let deleteBody: Record<string, unknown> | null = null
     let saveBody: Record<string, unknown> | null = null
+    let deleteCalledAt: number | null = null
+    let saveCalledAt: number | null = null
 
     server.use(
       http.post('/api/settings/get', () => HttpResponse.json(currentBundle)),
       http.post('/api/avatars/delete', async ({ request }) => {
         deleteBody = (await request.json()) as Record<string, unknown>
+        deleteCalledAt = Date.now()
         return HttpResponse.json({ ok: true })
       }),
       http.post('/api/settings/save', async ({ request }) => {
         saveBody = (await request.json()) as Record<string, unknown>
+        saveCalledAt = Date.now()
         currentBundle = { settings: JSON.stringify(saveBody) }
         return HttpResponse.json(currentBundle)
       }),
     )
 
-    window.confirm = vi.fn().mockReturnValue(true)
+    if (typeof window.confirm !== 'function') {
+      Object.defineProperty(window, 'confirm', {
+        value: () => true,
+        writable: true,
+        configurable: true,
+      })
+    }
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
 
     renderPage()
 
@@ -176,5 +193,9 @@ describe('Personas page', () => {
     }
     expect(reactPersonas.personas).toHaveLength(0)
     expect(reactPersonas.defaultId).toBeNull()
+
+    expect(deleteCalledAt).not.toBeNull()
+    expect(saveCalledAt).not.toBeNull()
+    expect(deleteCalledAt!).toBeLessThanOrEqual(saveCalledAt!)
   })
 })

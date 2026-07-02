@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 import type { ChatLine } from '../../api/types'
 import { apiPost } from '../../api/client'
+import { createTestQueryClient } from '../../test/utils'
+import { createWrapper } from '../../test/test-wrapper'
 import {
   chatKeys,
   useDeleteChat,
@@ -18,22 +19,11 @@ vi.mock('../../api/client', () => ({
 
 const mockedApiPost = vi.mocked(apiPost)
 
-function createWrapper(queryClient: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  )
-}
-
 describe('useSaveChat', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ ok: true })
   })
@@ -74,12 +64,7 @@ describe('useRenameChat', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ ok: true })
   })
@@ -118,12 +103,7 @@ describe('useDeleteChat', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ ok: true })
   })
@@ -160,12 +140,7 @@ describe('useExportChat', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
+    queryClient = createTestQueryClient()
     mockedApiPost.mockReset()
     mockedApiPost.mockResolvedValue({ result: 'saved' })
   })
