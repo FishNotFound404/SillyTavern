@@ -3,7 +3,13 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { apiPost } from '../../api/client'
-import { useGroupMembers } from './api'
+import {
+  groupKeys,
+  useCreateGroup,
+  useGroupMembers,
+  useUpdateGroup,
+} from './api'
+import type { Group } from './types'
 
 vi.mock('../../api/client', () => ({
   apiPost: vi.fn(),
@@ -36,6 +42,24 @@ function createAliceCharacter() {
     create_date: '',
     date_last_chat: 0,
     data: {},
+  }
+}
+
+function createGroupFixture(overrides: Partial<Group> = {}): Group {
+  return {
+    id: 'grp-1',
+    name: 'Test Group',
+    members: ['alice', 'bob'],
+    allow_self_responses: false,
+    activation_strategy: 0,
+    generation_mode: 0,
+    disabled_members: [],
+    chat_id: 'chat-1',
+    chats: ['chat-1'],
+    auto_mode_delay: 0,
+    generation_mode_join_prefix: '',
+    generation_mode_join_suffix: '',
+    ...overrides,
   }
 }
 
@@ -85,5 +109,79 @@ describe('useGroupMembers', () => {
     expect(mockedApiPost).toHaveBeenCalledTimes(2)
     expect(mockedApiPost).toHaveBeenCalledWith('/api/characters/get', { avatar_url: 'alice' })
     expect(mockedApiPost).toHaveBeenCalledWith('/api/characters/get', { avatar_url: 'bob' })
+  })
+})
+
+describe('useCreateGroup', () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    mockedApiPost.mockReset()
+    mockedApiPost.mockResolvedValue(createGroupFixture())
+  })
+
+  it('calls apiPost with /api/groups/create and invalidates groupKeys.all', async () => {
+    queryClient.setQueryData(groupKeys.all, [])
+
+    const { result } = renderHook(() => useCreateGroup(), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    const data: Partial<Group> = {
+      name: 'New Group',
+      members: ['alice'],
+      allow_self_responses: false,
+    }
+
+    await result.current.mutateAsync(data)
+
+    expect(mockedApiPost).toHaveBeenCalledTimes(1)
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/groups/create', data)
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(groupKeys.all)?.isInvalidated).toBe(true)
+    })
+  })
+})
+
+describe('useUpdateGroup', () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    mockedApiPost.mockReset()
+    mockedApiPost.mockResolvedValue({ ok: true })
+  })
+
+  it('calls apiPost with /api/groups/edit and invalidates both the group detail and the group list', async () => {
+    const detailKey = groupKeys.detail('grp-1')
+    queryClient.setQueryData(detailKey, createGroupFixture())
+    queryClient.setQueryData(groupKeys.all, [])
+
+    const { result } = renderHook(() => useUpdateGroup(), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    const group = createGroupFixture({ name: 'Renamed Group' })
+    await result.current.mutateAsync(group)
+
+    expect(mockedApiPost).toHaveBeenCalledTimes(1)
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/groups/edit', group)
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(groupKeys.all)?.isInvalidated).toBe(true)
+    })
   })
 })

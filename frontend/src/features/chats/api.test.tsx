@@ -4,7 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import type { ChatLine } from '../../api/types'
 import { apiPost } from '../../api/client'
-import { useSaveChat, chatKeys } from './api'
+import {
+  chatKeys,
+  useDeleteChat,
+  useExportChat,
+  useRenameChat,
+  useSaveChat,
+} from './api'
 
 vi.mock('../../api/client', () => ({
   apiPost: vi.fn(),
@@ -61,5 +67,131 @@ describe('useSaveChat', () => {
     await waitFor(() => {
       expect(queryClient.getQueryState(sessionKey)?.isInvalidated).toBe(true)
     })
+  })
+})
+
+describe('useRenameChat', () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    mockedApiPost.mockReset()
+    mockedApiPost.mockResolvedValue({ ok: true })
+  })
+
+  it('calls apiPost with /api/chats/rename and invalidates the character chat query', async () => {
+    const characterKey = chatKeys.character('alice')
+    queryClient.setQueryData(characterKey, [])
+
+    const { result } = renderHook(() => useRenameChat(), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync({
+      avatarUrl: 'alice',
+      originalFile: 'chat1.jsonl',
+      renamedFile: 'chat2.jsonl',
+    })
+
+    expect(mockedApiPost).toHaveBeenCalledTimes(1)
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/chats/rename', {
+      avatar_url: 'alice',
+      original_file: 'chat1.jsonl',
+      renamed_file: 'chat2.jsonl',
+    })
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(characterKey)?.isInvalidated).toBe(true)
+    })
+  })
+})
+
+describe('useDeleteChat', () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    mockedApiPost.mockReset()
+    mockedApiPost.mockResolvedValue({ ok: true })
+  })
+
+  it('calls apiPost with /api/chats/delete and invalidates the character chat query', async () => {
+    const characterKey = chatKeys.character('alice')
+    queryClient.setQueryData(characterKey, [])
+
+    const { result } = renderHook(() => useDeleteChat(), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync({
+      avatarUrl: 'alice',
+      chatfile: 'chat1.jsonl',
+    })
+
+    expect(mockedApiPost).toHaveBeenCalledTimes(1)
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/chats/delete', {
+      avatar_url: 'alice',
+      chatfile: 'chat1.jsonl',
+    })
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(characterKey)?.isInvalidated).toBe(true)
+    })
+  })
+})
+
+describe('useExportChat', () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    mockedApiPost.mockReset()
+    mockedApiPost.mockResolvedValue({ result: 'saved' })
+  })
+
+  it('calls apiPost with /api/chats/export and does not invalidate any chat query', async () => {
+    const sessionKey = [...chatKeys.session('alice'), 'chat1']
+    queryClient.setQueryData(sessionKey, {
+      file_name: 'chat1',
+      file_id: 'chat1',
+      lines: [],
+    })
+
+    const { result } = renderHook(() => useExportChat(), {
+      wrapper: createWrapper(queryClient),
+    })
+
+    await result.current.mutateAsync({
+      avatarUrl: 'alice',
+      file: 'chat1.jsonl',
+      format: 'jsonl',
+      exportfilename: 'exported.jsonl',
+    })
+
+    expect(mockedApiPost).toHaveBeenCalledTimes(1)
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/chats/export', {
+      avatar_url: 'alice',
+      file: 'chat1.jsonl',
+      format: 'jsonl',
+      exportfilename: 'exported.jsonl',
+    })
+
+    expect(queryClient.getQueryState(chatKeys.all)?.isInvalidated).toBeFalsy()
+    expect(queryClient.getQueryState(sessionKey)?.isInvalidated).toBeFalsy()
   })
 })
