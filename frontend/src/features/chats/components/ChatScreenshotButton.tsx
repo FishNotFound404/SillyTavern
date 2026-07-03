@@ -43,7 +43,7 @@ export function ChatScreenshotButton({ disabled, onSelect }: ChatScreenshotButto
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="p-2 text-gray-300 hover:text-purple-400 hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+        className="p-2 text-gray-300 hover:text-blue-400 hover:bg-gray-800 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
