@@ -21,6 +21,11 @@ function Navigation() {
     { to: '/settings', label: 'Settings' },
   ]
 
+  const handleLegacyClick = () => {
+    document.cookie = 'st_use_legacy=1; Path=/; Max-Age=2592000; SameSite=Lax'
+    window.location.href = '/?legacy=1'
+  }
+
   return (
     <nav className="bg-gray-900 border-b border-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -32,13 +37,23 @@ function Navigation() {
             </span>
             <span className="text-xs text-gray-400 ml-2">{location.pathname}</span>
           </div>
-          <button
-            className="md:hidden text-gray-300"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Toggle menu"
-          >
-            <span className="fa-solid fa-bars" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleLegacyClick}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg border border-gray-700 transition-colors"
+              title="Switch to legacy jQuery frontend"
+            >
+              <span>回到旧版</span>
+              <span className="fa-solid fa-arrow-up-right-from-square text-xs" />
+            </button>
+            <button
+              className="md:hidden text-gray-300"
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="Toggle menu"
+            >
+              <span className="fa-solid fa-bars" />
+            </button>
+          </div>
         </div>
         <div className={`${menuOpen ? 'block' : 'hidden'} md:block pb-4`}>
           <div className="flex flex-col md:flex-row md:items-center md:gap-2">
