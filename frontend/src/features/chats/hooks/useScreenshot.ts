@@ -8,7 +8,7 @@ export type ScreenshotState =
   | { kind: 'rendering'; message: string }
   | { kind: 'encoding' }
   | { kind: 'downloading' }
-  | { kind: 'done'; filename: string; sizeBytes: number }
+  | { kind: 'done'; filename: string }
   | { kind: 'error'; message: string }
 
 interface RunInput {
@@ -20,9 +20,12 @@ interface RunInput {
 
 function waitForImages(root: HTMLElement): Promise<void> {
   const imgs = Array.from(root.querySelectorAll('img'))
+  const ready = (img: HTMLImageElement) =>
+    img.complete || !img.getAttribute('src')
+
   return Promise.all(
     imgs.map((img) =>
-      img.complete && img.naturalWidth > 0
+      ready(img)
         ? Promise.resolve()
         : new Promise<void>((resolve) => {
             img.addEventListener('load', () => resolve(), { once: true })
@@ -73,7 +76,7 @@ export function useScreenshot() {
       setState({ kind: 'downloading' })
       downloadBlob(blob, filename)
 
-      setState({ kind: 'done', filename, sizeBytes: blob.size })
+      setState({ kind: 'done', filename })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setState({ kind: 'error', message })

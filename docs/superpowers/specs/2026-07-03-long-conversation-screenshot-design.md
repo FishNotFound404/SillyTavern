@@ -91,14 +91,14 @@ Key rules:
 ```ts
 type ScreenshotState =
   | { kind: 'idle' }
-  | { kind: 'rendering'; phase: 'mounting' | 'loadingImages' | 'capturing'; total: number; done: number }
+  | { kind: 'rendering'; message: string }
   | { kind: 'encoding' }
-  | { kind: 'downloading'; filename: string }
+  | { kind: 'downloading' }
   | { kind: 'done'; filename: string }
   | { kind: 'error'; message: string };
 ```
 
-The state transitions drive the dialog UI and decide when to unmount the surface.
+The state transitions drive the dialog UI and decide when to unmount the surface. The implementation combines `mounting`/`loadingImages`/`capturing` into a single `rendering` state with a free-form `message` field. Progress counters (e.g., "67%") are not yet shown; the dialog currently displays phase label only. This is suitable for v1; a future iteration can re-introduce per-phase progress if needed.
 
 ### 4.5 Filename Convention
 
@@ -200,14 +200,13 @@ Implemented as a controlled `<div role="menu">`; closes on outside click or `Esc
 
 ### 8.3 Progress Dialog
 
-While rendering, a centered modal shows:
+While rendering, a centered modal shows the current phase label (no progress count in v1):
 
 ```
 ┌────────────────────────────────────┐
 │  生成长截图                         │
 │                                    │
-│  正在渲染 123 条消息...             │
-│  ████████████░░░░░░░░  67%         │
+│  正在渲染...                        │
 │                                    │
 │  请勿关闭页面                       │
 └────────────────────────────────────┘
