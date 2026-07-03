@@ -62,6 +62,17 @@
     </div>
     <!-- top bar central settings buttons -->
     <div id="top-bar">
+        <button id="switch-to-react" class="menu_button" style="position:fixed; top:8px; right:8px; z-index:30000; padding:6px 12px; font-size:12px;" title="Switch to the new React frontend">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> 回到新版
+        </button>
+        <script>
+            document.getElementById('switch-to-react').addEventListener('click', function() {
+                // Clear the legacy opt-out cookie
+                document.cookie = 'st_use_legacy=; Path=/; Max-Age=0; SameSite=Lax';
+                // Navigate to React frontend
+                window.location.href = '/?legacy=0';
+            });
+        </script>
     </div>
     <div id="top-settings-holder">
         <!-- background selection menu -->
