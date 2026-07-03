@@ -115,7 +115,7 @@ export function ScreenshotDialog({
             </div>
             <div
               role="progressbar"
-              aria-valuenow={50}
+              aria-valuenow={phase === 'downloading' ? 90 : phase === 'encoding' ? 70 : 40}
               aria-valuemin={0}
               aria-valuemax={100}
               className="h-2 bg-gray-700 rounded overflow-hidden mb-3"
