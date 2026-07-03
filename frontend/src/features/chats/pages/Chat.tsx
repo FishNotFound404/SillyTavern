@@ -1,8 +1,14 @@
+import { useState, useRef, useEffect } from 'react'
+import { createRoot } from 'react-dom/client'
 import { useNavigate } from 'react-router-dom'
+import type { ChatMessage } from '../../../api/types'
 import { useChat } from '../hooks/useChat'
 import { ChatHeader } from '../components/ChatHeader'
 import { ChatInput } from '../components/ChatInput'
 import { ChatMessageItem } from '../components/ChatMessageItem'
+import { ScreenshotDialog, type DialogFormat } from '../components/ScreenshotDialog'
+import { CanvasSurface } from '../components/CanvasSurface'
+import { useScreenshot } from '../hooks/useScreenshot'
 import { ChatSkeleton, EmptyState, ErrorState } from '../../../components/ui'
 
 function Chat() {
@@ -49,6 +55,80 @@ function Chat() {
     handleNextMatch,
   } = useChat()
 
+  const screenshot = useScreenshot()
+  const [screenshotDialogOpen, setScreenshotDialogOpen] = useState(false)
+  const [screenshotFormat, setScreenshotFormat] = useState<DialogFormat>('png1x')
+  const autoCloseTimeoutRef = useRef<number | null>(null)
+
+  const chatFileName = chatFiles.find((c) => c.file_id === selectedFile)?.file_name ?? null
+
+  const handleScreenshotChat = (_format: DialogFormat) => {
+    setScreenshotDialogOpen(true)
+  }
+
+  const handleScreenshotRun = async () => {
+    const messageOnly = chatData.filter((l): l is ChatMessage => !('chat_metadata' in l))
+
+    const host = document.createElement('div')
+    host.style.position = 'fixed'
+    host.style.left = '-99999px'
+    host.style.top = '0'
+    let root: ReturnType<typeof createRoot> | null = null
+
+    try {
+      document.body.appendChild(host)
+      root = createRoot(host)
+      root.render(
+        <CanvasSurface
+          character={character}
+          characterAvatar={characterAvatar}
+          personaName={activePersonaName}
+          personaAvatar={activePersonaAvatar}
+          chatFileName={chatFileName ?? undefined}
+          messages={messageOnly}
+          query={searchQuery}
+        />,
+      )
+
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+      await screenshot.run({
+        container: host,
+        format: screenshotFormat,
+        characterName: character?.name ?? null,
+        chatFileName,
+      })
+
+      if (screenshot.state.kind === 'done') {
+        if (autoCloseTimeoutRef.current !== null) {
+          window.clearTimeout(autoCloseTimeoutRef.current)
+        }
+        autoCloseTimeoutRef.current = window.setTimeout(() => {
+          autoCloseTimeoutRef.current = null
+          setScreenshotDialogOpen(false)
+          screenshot.reset()
+        }, 2000)
+      }
+    } finally {
+      if (root) root.unmount()
+      if (host.parentNode === document.body) document.body.removeChild(host)
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (autoCloseTimeoutRef.current !== null) {
+        window.clearTimeout(autoCloseTimeoutRef.current)
+        autoCloseTimeoutRef.current = null
+      }
+    }
+  }, [])
+
+  const isRunning =
+    screenshot.state.kind === 'rendering' ||
+    screenshot.state.kind === 'encoding' ||
+    screenshot.state.kind === 'downloading'
+
   if (loading) {
     return <ChatSkeleton />
   }
@@ -86,6 +166,7 @@ function Chat() {
         onClearChat={handleClearChat}
         onDeleteChat={handleDeleteChat}
         onExportChat={handleExportChat}
+        onScreenshotChat={handleScreenshotChat}
         onManagePersonas={() => navigate('/personas')}
       />
 
@@ -175,6 +256,41 @@ function Chat() {
         onSend={handleSend}
         onStop={handleStop}
       />
+
+      {screenshotDialogOpen && (
+        <ScreenshotDialog
+          format={screenshotFormat}
+          setFormat={setScreenshotFormat}
+          onConfirm={() => {
+            void handleScreenshotRun()
+          }}
+          onClose={() => {
+            if (isRunning) return
+            if (autoCloseTimeoutRef.current !== null) {
+              window.clearTimeout(autoCloseTimeoutRef.current)
+              autoCloseTimeoutRef.current = null
+            }
+            setScreenshotDialogOpen(false)
+            screenshot.reset()
+          }}
+          running={screenshot.state.kind !== 'idle'}
+          phase={
+            screenshot.state.kind === 'rendering'
+              ? 'rendering'
+              : screenshot.state.kind === 'encoding'
+                ? 'encoding'
+                : screenshot.state.kind === 'downloading'
+                  ? 'downloading'
+                  : screenshot.state.kind === 'done'
+                    ? 'done'
+                    : screenshot.state.kind === 'error'
+                      ? 'error'
+                      : 'idle'
+          }
+          filename={screenshot.state.kind === 'done' ? screenshot.state.filename : undefined}
+          error={screenshot.state.kind === 'error' ? screenshot.state.message : undefined}
+        />
+      )}
     </div>
   )
 }
