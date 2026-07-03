@@ -9,6 +9,7 @@ interface CanvasSurfaceProps {
   personaAvatar?: string
   chatFileName?: string
   messages: ChatMessage[]
+  query?: string
 }
 
 function pad2(n: number): string {
@@ -45,6 +46,7 @@ export function CanvasSurface({
   personaAvatar,
   chatFileName,
   messages,
+  query,
 }: CanvasSurfaceProps) {
   return (
     <div
@@ -56,6 +58,7 @@ export function CanvasSurface({
         fontFamily:
           'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
         boxSizing: 'border-box',
+        overflowWrap: 'break-word',
       }}
     >
       <div style={{ borderBottom: '1px solid #374151', paddingBottom: 16, marginBottom: 16 }}>
@@ -78,6 +81,7 @@ export function CanvasSurface({
             generating={false}
             userAvatar={personaAvatar}
             characterAvatar={characterAvatar}
+            query={query}
             onEditStart={noop}
             onEditSave={noop}
             onEditCancel={noop}
