@@ -73,6 +73,18 @@ describe('ScreenshotDialog', () => {
     expect(screen.getByText(/已保存/)).toBeInTheDocument()
   })
 
+  it('does not show progress UI when phase is done', () => {
+    render(<ScreenshotDialog {...makeState({ running: true })} phase="done" filename="a.png" />)
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    expect(screen.queryByText(/请勿关闭页面/)).not.toBeInTheDocument()
+  })
+
+  it('does not show progress UI when phase is error', () => {
+    render(<ScreenshotDialog {...makeState({ running: true })} phase="error" error="x" />)
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    expect(screen.queryByText(/请勿关闭页面/)).not.toBeInTheDocument()
+  })
+
   it('renders error message on error phase', () => {
     render(<ScreenshotDialog {...makeState({ running: true })} phase="error" error="糟糕" />)
     expect(screen.getByText(/糟糕/)).toBeInTheDocument()

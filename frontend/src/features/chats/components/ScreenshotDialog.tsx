@@ -41,7 +41,8 @@ export function ScreenshotDialog({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, running])
 
-  const showProgress = running && phase !== 'idle'
+  const showProgress =
+    running && phase !== 'idle' && phase !== 'done' && phase !== 'error'
   const showDone = running && phase === 'done'
   const showError = running && phase === 'error'
 
