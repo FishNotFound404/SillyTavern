@@ -60,7 +60,7 @@ export function useScreenshot() {
       const canvas = await domToCanvas(container, {
         scale: format === 'png2x' ? 2 : 1,
         backgroundColor: getComputedStyle(container).backgroundColor || '#111827',
-        imageTimeout: 5000,
+        timeout: 5000,
       })
 
       setState({ kind: 'encoding' })

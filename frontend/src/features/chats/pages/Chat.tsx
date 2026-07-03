@@ -62,7 +62,7 @@ function Chat() {
 
   const chatFileName = chatFiles.find((c) => c.file_id === selectedFile)?.file_name ?? null
 
-  const handleScreenshotChat = (_format: DialogFormat) => {
+  const handleScreenshotChat = () => {
     setScreenshotDialogOpen(true)
   }
 

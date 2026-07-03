@@ -4,11 +4,24 @@ import userEvent from '@testing-library/user-event'
 import { ScreenshotDialog, type DialogFormat } from '../ScreenshotDialog'
 
 const noop = () => {}
-function makeState(overrides: Partial<{ format: DialogFormat; running: boolean }> = {}) {
+type Phase = 'idle' | 'rendering' | 'encoding' | 'downloading' | 'done' | 'error'
+
+interface FakeState {
+  format: DialogFormat
+  setFormat: (f: DialogFormat) => void
+  onConfirm: () => void
+  onClose: () => void
+  running?: boolean
+  phase?: Phase
+  filename?: string
+  error?: string
+}
+
+function makeState(overrides: Partial<FakeState> = {}): FakeState {
   return {
-    format: 'png1x' as DialogFormat,
-    setFormat: vi.fn(),
-    onConfirm: vi.fn(),
+    format: 'png1x',
+    setFormat: vi.fn() as unknown as (f: DialogFormat) => void,
+    onConfirm: vi.fn() as unknown as () => void,
     onClose: noop,
     ...overrides,
   }
@@ -29,14 +42,14 @@ describe('ScreenshotDialog', () => {
   })
 
   it('clicking a format option calls setFormat', async () => {
-    const setFormat = vi.fn()
+    const setFormat = vi.fn() as unknown as (f: DialogFormat) => void
     render(<ScreenshotDialog {...makeState({ setFormat })} />)
     await userEvent.click(screen.getByText(/PNG \(2x\)/))
     expect(setFormat).toHaveBeenCalledWith('png2x')
   })
 
   it('confirm button calls onConfirm', async () => {
-    const onConfirm = vi.fn()
+    const onConfirm = vi.fn() as unknown as () => void
     render(<ScreenshotDialog {...makeState({ onConfirm })} />)
     await userEvent.click(screen.getByRole('button', { name: /生成长截图/ }))
     expect(onConfirm).toHaveBeenCalled()
