@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useNavigate } from 'react-router-dom'
 import type { ChatMessage } from '../../../api/types'
@@ -58,6 +58,7 @@ function Chat() {
   const screenshot = useScreenshot()
   const [screenshotDialogOpen, setScreenshotDialogOpen] = useState(false)
   const [screenshotFormat, setScreenshotFormat] = useState<DialogFormat>('png1x')
+  const autoCloseTimeoutRef = useRef<number | null>(null)
 
   const chatFileName = chatFiles.find((c) => c.file_id === selectedFile)?.file_name ?? null
 
@@ -72,40 +73,56 @@ function Chat() {
     host.style.position = 'fixed'
     host.style.left = '-99999px'
     host.style.top = '0'
-    document.body.appendChild(host)
+    let root: ReturnType<typeof createRoot> | null = null
 
-    const root = createRoot(host)
-    root.render(
-      <CanvasSurface
-        character={character}
-        characterAvatar={characterAvatar}
-        personaName={activePersonaName}
-        personaAvatar={activePersonaAvatar}
-        chatFileName={chatFileName ?? undefined}
-        messages={messageOnly}
-        query={searchQuery}
-      />,
-    )
+    try {
+      document.body.appendChild(host)
+      root = createRoot(host)
+      root.render(
+        <CanvasSurface
+          character={character}
+          characterAvatar={characterAvatar}
+          personaName={activePersonaName}
+          personaAvatar={activePersonaAvatar}
+          chatFileName={chatFileName ?? undefined}
+          messages={messageOnly}
+          query={searchQuery}
+        />,
+      )
 
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 
-    await screenshot.run({
-      container: host,
-      format: screenshotFormat,
-      characterName: character?.name ?? null,
-      chatFileName,
-    })
+      await screenshot.run({
+        container: host,
+        format: screenshotFormat,
+        characterName: character?.name ?? null,
+        chatFileName,
+      })
 
-    root.unmount()
-    document.body.removeChild(host)
-
-    if (screenshot.state.kind === 'done') {
-      setTimeout(() => {
-        setScreenshotDialogOpen(false)
-        screenshot.reset()
-      }, 2000)
+      if (screenshot.state.kind === 'done') {
+        if (autoCloseTimeoutRef.current !== null) {
+          window.clearTimeout(autoCloseTimeoutRef.current)
+        }
+        autoCloseTimeoutRef.current = window.setTimeout(() => {
+          autoCloseTimeoutRef.current = null
+          setScreenshotDialogOpen(false)
+          screenshot.reset()
+        }, 2000)
+      }
+    } finally {
+      if (root) root.unmount()
+      if (host.parentNode === document.body) document.body.removeChild(host)
     }
   }
+
+  useEffect(() => {
+    return () => {
+      if (autoCloseTimeoutRef.current !== null) {
+        window.clearTimeout(autoCloseTimeoutRef.current)
+        autoCloseTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   const isRunning =
     screenshot.state.kind === 'rendering' ||
@@ -249,6 +266,10 @@ function Chat() {
           }}
           onClose={() => {
             if (isRunning) return
+            if (autoCloseTimeoutRef.current !== null) {
+              window.clearTimeout(autoCloseTimeoutRef.current)
+              autoCloseTimeoutRef.current = null
+            }
             setScreenshotDialogOpen(false)
             screenshot.reset()
           }}
